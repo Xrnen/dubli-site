@@ -29,12 +29,12 @@
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#09090F; --bg2:#0E0E18; --card:#16131F; --fg:#FFFFFF; --muted:#ABA7C8; --line:rgba(255,255,255,.10);
+    --bg:#0A0912; --bg2:#141124; --card:#211D33; --fg:#FFFFFF; --muted:#AEA9CC; --line:rgba(255,255,255,.13);
     --shadow:0 28px 64px -24px rgba(0,0,0,.85); color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
-  --bg:#09090F; --bg2:#0E0E18; --card:#16131F; --fg:#FFFFFF; --muted:#ABA7C8; --line:rgba(255,255,255,.10);
+  --bg:#0A0912; --bg2:#141124; --card:#211D33; --fg:#FFFFFF; --muted:#AEA9CC; --line:rgba(255,255,255,.13);
   --shadow:0 28px 64px -24px rgba(0,0,0,.85); color-scheme:dark;
 }
 /* Strong, vivid palettes (the owner wanted bold, not washed-out) — switchable; white text reads on each accent. */
@@ -112,7 +112,7 @@ h1{font-family:var(--font-display);font-weight:700;font-size:clamp(2.7rem,6.6vw,
 
 /* scene (illustration) */
 .scene{border-radius:26px;border:1px solid var(--line);box-shadow:var(--shadow);padding:10px;
-  background:color-mix(in srgb,var(--card) 80%,transparent)}
+  background:color-mix(in srgb,var(--card) 92%,transparent)}
 .scene-screen{position:relative;aspect-ratio:16/11;border-radius:18px;overflow:hidden;color:var(--scene-fg);
   background:linear-gradient(165deg,var(--scene-1),var(--scene-2) 72%,#4A3B3D)}
 .scene-screen::after{content:"";position:absolute;inset:0;pointer-events:none;
@@ -159,7 +159,7 @@ h2{font-family:var(--font-display);font-weight:700;font-size:clamp(2rem,4.3vw,3.
 .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
 .grid2>*{min-width:0}
 .card{position:relative;border:1px solid var(--line);border-radius:22px;padding:26px;
-  background:color-mix(in srgb,var(--card) 84%,transparent);transition:transform .25s}
+  background:color-mix(in srgb,var(--card) 92%,transparent);transition:transform .25s}
 .card:hover{transform:translateY(-3px)}
 .card h3{font-size:1.2rem;font-weight:600;margin:16px 0 8px}
 .card p{color:var(--muted);font-size:.98rem}
@@ -172,12 +172,12 @@ h2{font-family:var(--font-display);font-weight:700;font-size:clamp(2rem,4.3vw,3.
 
 /* real screenshots */
 .shots{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
-.shots figure{border:1px solid var(--line);border-radius:20px;padding:10px;background:color-mix(in srgb,var(--card) 84%,transparent);box-shadow:var(--shadow);min-width:0}
+.shots figure{border:1px solid var(--line);border-radius:20px;padding:10px;background:color-mix(in srgb,var(--card) 92%,transparent);box-shadow:var(--shadow);min-width:0}
 .shots img{border-radius:12px;width:100%;height:auto}
 .shots figcaption{color:var(--muted);font-size:.92rem;padding:12px 6px 4px}
 
 .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;counter-reset:s;margin-bottom:34px}
-.steps li{counter-increment:s;padding:22px;border-radius:20px;border:1px solid var(--line);background:color-mix(in srgb,var(--card) 84%,transparent);min-width:0}
+.steps li{counter-increment:s;padding:22px;border-radius:20px;border:1px solid var(--line);background:color-mix(in srgb,var(--card) 92%,transparent);min-width:0}
 .steps li::before{content:counter(s,arabic-indic);display:block;font-family:var(--font-display);font-weight:700;font-size:2.2rem;line-height:1;color:color-mix(in srgb,var(--a1) 80%,var(--fg));margin-bottom:10px}
 html[lang="en"] .steps li::before{content:counter(s,decimal)}
 .steps h3{font-size:1.1rem;font-weight:600;margin-bottom:6px}
@@ -190,7 +190,7 @@ thead th{font-weight:600;background:color-mix(in srgb,var(--a1) 14%,var(--card))
 tbody th{font-weight:500;color:var(--muted);width:17%}
 .cmp-note{margin-top:16px;color:var(--muted);font-size:.95rem}
 
-.verify{margin-top:20px;border:1px solid var(--line);border-radius:22px;padding:clamp(20px,3vw,32px);background:color-mix(in srgb,var(--card) 84%,transparent)}
+.verify{margin-top:20px;border:1px solid var(--line);border-radius:22px;padding:clamp(20px,3vw,32px);background:color-mix(in srgb,var(--card) 92%,transparent)}
 .verify h3{font-size:1.2rem;font-weight:600;margin-bottom:14px}
 .verify ol{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;padding-inline-start:1.3em;list-style:decimal}
 .verify li{min-width:0}
