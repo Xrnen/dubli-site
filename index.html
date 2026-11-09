@@ -21,29 +21,29 @@
   --font-display:'Plex Arabic','Segoe UI',Tahoma,system-ui,sans-serif;
   --font-body:'Plex Arabic','Segoe UI',Tahoma,system-ui,sans-serif;
   --font-mono:ui-monospace,'Cascadia Mono',Consolas,monospace;
-  --bg:#F2ECE3; --bg2:#EBE2D5; --card:#FBF6EF; --fg:#2A2420; --muted:#6B5748; --line:#E2D2C0;
-  --a1:#E8B96A; --a2:#A8642F; --on-a:#2B1D12;
-  --shadow:0 20px 40px -24px rgba(70,45,25,.5);
-  --ok:#3E9B6B; --beta:#C98A2B; --dev:#7C8A99;
-  --scene-1:#1B2230; --scene-2:#3A2F3C; --scene-fg:#F3EDE4;
+  --bg:#F5F5FB; --bg2:#EBEBF6; --card:#FFFFFF; --fg:#0E1020; --muted:#4F5270; --line:#E3E3F1;
+  --a1:#7C5CFF; --a2:#22D3EE; --on-a:#FFFFFF;
+  --shadow:0 24px 50px -26px rgba(22,16,60,.42);
+  --ok:#16A34A; --beta:#D97706; --dev:#64748B;
+  --scene-1:#0B0B16; --scene-2:#1C1536; --scene-fg:#F3EEFF;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#1C1815; --bg2:#241E19; --card:#29211B; --fg:#F5F1EA; --muted:#BBA997; --line:#3B2F27;
-    --shadow:0 20px 40px -24px rgba(0,0,0,.75); color-scheme:dark;
+    --bg:#09090F; --bg2:#0E0E18; --card:#16131F; --fg:#FFFFFF; --muted:#ABA7C8; --line:rgba(255,255,255,.10);
+    --shadow:0 28px 64px -24px rgba(0,0,0,.85); color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
-  --bg:#1C1815; --bg2:#241E19; --card:#29211B; --fg:#F5F1EA; --muted:#BBA997; --line:#3B2F27;
-  --shadow:0 20px 40px -24px rgba(0,0,0,.75); color-scheme:dark;
+  --bg:#09090F; --bg2:#0E0E18; --card:#16131F; --fg:#FFFFFF; --muted:#ABA7C8; --line:rgba(255,255,255,.10);
+  --shadow:0 28px 64px -24px rgba(0,0,0,.85); color-scheme:dark;
 }
-/* Palettes from the app (Services/Palettes.cs): the lighter shade drives the accent, the deeper shade the swatch. */
-:root[data-pal="honey"]{--a1:#E8B96A;--a2:#A8642F}
-:root[data-pal="pink"]{--a1:#E8B4C2;--a2:#A8687C}
-:root[data-pal="beige"]{--a1:#D9C2A0;--a2:#7A5238}
-:root[data-pal="sage"]{--a1:#92AA91;--a2:#4C6B55}
-:root[data-pal="navy"]{--a1:#7DA0CA;--a2:#052659}
-:root[data-pal="lav"]{--a1:#B8A6D9;--a2:#6E5A94}
+/* Strong, vivid palettes (the owner wanted bold, not washed-out) — switchable; white text reads on each accent. */
+:root[data-pal="violet"]{--a1:#7C5CFF;--a2:#22D3EE}
+:root[data-pal="blue"]{--a1:#2563EB;--a2:#06B6D4}
+:root[data-pal="pink"]{--a1:#DB2777;--a2:#F472B6}
+:root[data-pal="emerald"]{--a1:#059669;--a2:#34D399}
+:root[data-pal="rose"]{--a1:#E11D48;--a2:#FB7185}
+:root[data-pal="amber"]{--a1:#D97706;--a2:#FBBF24}
 
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
@@ -88,9 +88,9 @@ ul,ol{padding:0;list-style:none}
 /* buttons */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;padding:13px 22px;border-radius:14px;
   font:600 1rem var(--font-body);text-decoration:none;border:1px solid transparent;cursor:pointer;transition:transform .2s,background .2s}
-.btn-p{background:linear-gradient(135deg,var(--a1),color-mix(in srgb,var(--a1) 68%,#fff));color:var(--on-a);
-  box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.45)}
-.btn-p:hover{transform:translateY(-1px)}
+.btn-p{background:linear-gradient(135deg,var(--a1),color-mix(in srgb,var(--a1) 72%,#000));color:var(--on-a);
+  box-shadow:0 16px 34px -14px color-mix(in srgb,var(--a1) 75%,transparent),inset 0 1px 0 rgba(255,255,255,.22)}
+.btn-p:hover{transform:translateY(-1px);box-shadow:0 20px 40px -14px color-mix(in srgb,var(--a1) 85%,transparent),inset 0 1px 0 rgba(255,255,255,.22)}
 .btn-g{background:transparent;color:var(--fg);border-color:var(--line)}
 .btn-g:hover{background:color-mix(in srgb,var(--a1) 20%,transparent)}
 .btn.is-off{background:transparent;color:var(--muted);border:1px dashed color-mix(in srgb,var(--muted) 60%,transparent);box-shadow:none;cursor:not-allowed}
@@ -100,10 +100,12 @@ ul,ol{padding:0;list-style:none}
 .hero{padding-block:clamp(36px,7vw,92px) clamp(32px,5vw,64px)}
 .hero .wrap{display:grid;grid-template-columns:1.02fr .98fr;gap:clamp(28px,5vw,64px);align-items:center}
 .hero .wrap>*{min-width:0}
-.eyebrow{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border:1px solid var(--line);border-radius:999px;
-  font-size:.9rem;font-weight:600;color:var(--muted);background:color-mix(in srgb,var(--card) 70%,transparent)}
-h1{font-family:var(--font-display);font-weight:700;font-size:clamp(2.5rem,6vw,4.3rem);line-height:1.25;margin:18px 0 16px;text-wrap:balance}
-.hl{background:linear-gradient(transparent 64%,color-mix(in srgb,var(--a1) 60%,transparent) 64%);padding-inline:.12em}
+.eyebrow{display:inline-flex;align-items:center;gap:9px;padding:7px 16px;border-radius:999px;
+  font-size:.9rem;font-weight:700;color:var(--fg);border:1px solid color-mix(in srgb,var(--a1) 45%,var(--line));
+  background:color-mix(in srgb,var(--a1) 13%,transparent)}
+.eyebrow::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--a1);box-shadow:0 0 10px var(--a1)}
+h1{font-family:var(--font-display);font-weight:700;font-size:clamp(2.7rem,6.6vw,5rem);line-height:1.1;letter-spacing:-.015em;margin:16px 0 18px;text-wrap:balance}
+.hl{background:linear-gradient(90deg,var(--a1),var(--a2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;padding-inline:.05em}
 .lead{font-size:1.15rem;color:var(--muted);max-width:34em}
 .cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
 .meta{margin-top:16px;font-size:.9rem;color:var(--muted)}
@@ -142,7 +144,7 @@ h1{font-family:var(--font-display);font-weight:700;font-size:clamp(2.5rem,6vw,4.
 .sec{padding-block:clamp(48px,7vw,92px);scroll-margin-top:72px}
 .sec.alt{background:color-mix(in srgb,var(--a1) 9%,var(--bg2))}
 .sec-h{max-width:640px;margin-bottom:34px}
-h2{font-family:var(--font-display);font-weight:700;font-size:clamp(1.9rem,4vw,2.9rem);line-height:1.3;margin-bottom:10px;text-wrap:balance}
+h2{font-family:var(--font-display);font-weight:700;font-size:clamp(2rem,4.3vw,3.1rem);line-height:1.18;letter-spacing:-.012em;margin-bottom:10px;text-wrap:balance}
 .sec-h p{color:var(--muted)}
 .kicker{font-size:.85rem;font-weight:600;letter-spacing:.04em;color:var(--muted);margin-bottom:14px}
 .strip{padding-block:6px 20px}
@@ -290,12 +292,12 @@ tbody th{font-weight:500;color:var(--muted);width:17%}
     </nav>
     <div class="tools">
       <div class="pal" role="group" data-i18n-aria="tool.pal">
-        <button type="button" class="pb" data-pal="honey" style="--p1:#E8B96A;--p2:#A8642F" data-i18n-aria="pal.honey"></button>
-        <button type="button" class="pb" data-pal="pink" style="--p1:#E8B4C2;--p2:#A8687C" data-i18n-aria="pal.pink"></button>
-        <button type="button" class="pb" data-pal="beige" style="--p1:#D9C2A0;--p2:#7A5238" data-i18n-aria="pal.beige"></button>
-        <button type="button" class="pb" data-pal="sage" style="--p1:#92AA91;--p2:#4C6B55" data-i18n-aria="pal.sage"></button>
-        <button type="button" class="pb" data-pal="navy" style="--p1:#7DA0CA;--p2:#052659" data-i18n-aria="pal.navy"></button>
-        <button type="button" class="pb" data-pal="lav" style="--p1:#B8A6D9;--p2:#6E5A94" data-i18n-aria="pal.lav"></button>
+        <button type="button" class="pb" data-pal="violet" style="--p1:#7C5CFF;--p2:#22D3EE" data-i18n-aria="pal.violet"></button>
+        <button type="button" class="pb" data-pal="blue" style="--p1:#2563EB;--p2:#06B6D4" data-i18n-aria="pal.blue"></button>
+        <button type="button" class="pb" data-pal="pink" style="--p1:#DB2777;--p2:#F472B6" data-i18n-aria="pal.pink"></button>
+        <button type="button" class="pb" data-pal="emerald" style="--p1:#059669;--p2:#34D399" data-i18n-aria="pal.emerald"></button>
+        <button type="button" class="pb" data-pal="rose" style="--p1:#E11D48;--p2:#FB7185" data-i18n-aria="pal.rose"></button>
+        <button type="button" class="pb" data-pal="amber" style="--p1:#D97706;--p2:#FBBF24" data-i18n-aria="pal.amber"></button>
       </div>
       <button type="button" class="ib" id="themeBtn" data-i18n-aria="tool.theme"><svg class="ic"><use id="themeUse" href="#i-moon"/></svg></button>
       <button type="button" class="ib" id="langBtn" lang="en">EN</button>
@@ -314,12 +316,12 @@ tbody th{font-weight:500;color:var(--muted);width:17%}
       <div class="mob-row mob-pal-row">
         <span data-i18n="tool.pal"></span>
         <div class="pal" role="group" data-i18n-aria="tool.pal">
-          <button type="button" class="pb" data-pal="honey" style="--p1:#E8B96A;--p2:#A8642F" data-i18n-aria="pal.honey"></button>
-          <button type="button" class="pb" data-pal="pink" style="--p1:#E8B4C2;--p2:#A8687C" data-i18n-aria="pal.pink"></button>
-          <button type="button" class="pb" data-pal="beige" style="--p1:#D9C2A0;--p2:#7A5238" data-i18n-aria="pal.beige"></button>
-          <button type="button" class="pb" data-pal="sage" style="--p1:#92AA91;--p2:#4C6B55" data-i18n-aria="pal.sage"></button>
-          <button type="button" class="pb" data-pal="navy" style="--p1:#7DA0CA;--p2:#052659" data-i18n-aria="pal.navy"></button>
-          <button type="button" class="pb" data-pal="lav" style="--p1:#B8A6D9;--p2:#6E5A94" data-i18n-aria="pal.lav"></button>
+          <button type="button" class="pb" data-pal="violet" style="--p1:#7C5CFF;--p2:#22D3EE" data-i18n-aria="pal.violet"></button>
+          <button type="button" class="pb" data-pal="blue" style="--p1:#2563EB;--p2:#06B6D4" data-i18n-aria="pal.blue"></button>
+          <button type="button" class="pb" data-pal="pink" style="--p1:#DB2777;--p2:#F472B6" data-i18n-aria="pal.pink"></button>
+          <button type="button" class="pb" data-pal="emerald" style="--p1:#059669;--p2:#34D399" data-i18n-aria="pal.emerald"></button>
+          <button type="button" class="pb" data-pal="rose" style="--p1:#E11D48;--p2:#FB7185" data-i18n-aria="pal.rose"></button>
+          <button type="button" class="pb" data-pal="amber" style="--p1:#D97706;--p2:#FBBF24" data-i18n-aria="pal.amber"></button>
         </div>
       </div>
     </div>
@@ -509,7 +511,7 @@ var T = {
 ar: {
  'nav.features':'المزايا','nav.how':'كيف يعمل','nav.safety':'الأمان','nav.faq':'الأسئلة','nav.get':'التحميل','nav.menu':'القائمة',
  'tool.theme':'تبديل الوضع الداكن والفاتح','tool.pal':'ألوان الصفحة',
- 'pal.honey':'عسل','pal.pink':'وردي ناعم','pal.beige':'بيج وبني','pal.sage':'ميرمية','pal.navy':'كحلي','pal.lav':'لافندر',
+ 'pal.violet':'بنفسجي','pal.blue':'أزرق','pal.pink':'وردي','pal.emerald':'زمردي','pal.rose':'توتي','pal.amber':'كهرماني',
  'hero.eyebrow':'تعريب الألعاب لويندوز',
  'hero.title':'ألعابك تتكلم <span class="hl">عربي</span>.',
  'hero.sub':'{name} يترجم نصوص الألعاب إلى العربية على جهازك، بدون مفاتيح API وبدون ما يلمس حمايات اللعبة.',
@@ -530,7 +532,7 @@ ar: {
  'f3.t':'المكتبة الرسمية','f3.d':'تثبيت وتحديث وإزالة تعريبات جاهزة من داخل التطبيق، مع نسخة احتياطية وفحص لنسخة اللعبة. فيها تعاريب لعدد من الألعاب المجرَّبة، وتكبر مع الوقت.',
  'f4.t':'مكتبتي الشخصية','f4.d':'مكان لمشاريع ترجمتك الخاصة على جهازك. لسه قيد البناء، وما تنرفع ولا تنتشر بدون قرارك.',
  'feat.later':'قيد البناء: مكتبتك الشخصية ومحتوى المكتبة الجاهزة. تسجيل الدخول بالديسكورد يشتغل الآن. التسعير والاشتراكات ما تحدّدت بعد.',
- 'look.title':'لمحة من داخل البرنامج','look.sub':'لقطات حقيقية من {name} على ويندوز — بالوضع الداكن ولون «وردي ناعم».',
+ 'look.title':'لمحة من داخل البرنامج','look.sub':'لقطات حقيقية من {name} على ويندوز.',
  'look.a1':'لقطة حقيقية لصفحة الإعدادات ولوحة الألوان في دوبلي','look.a2':'لقطة حقيقية لمساحة الترجمة الحية في دوبلي',
  'look.c1':'الإعدادات ولوحة الألوان الدافئة، مع تبديل الحساب.','look.c2':'مساحة الترجمة الحية: اختيار نافذة اللعبة وطريقة الالتقاط.',
  'look.note':'هذي لقطات فعلية من البرنامج، صوّرناها بأنفسنا — مو صور ألعاب ولا أغلفة.',
@@ -578,7 +580,7 @@ ar: {
 en: {
  'nav.features':'Features','nav.how':'How it works','nav.safety':'Safety','nav.faq':'FAQ','nav.get':'Download','nav.menu':'Menu',
  'tool.theme':'Toggle dark and light mode','tool.pal':'Page colors',
- 'pal.honey':'Honey','pal.pink':'Baby pink','pal.beige':'Beige & brown','pal.sage':'Sage','pal.navy':'Navy','pal.lav':'Lavender',
+ 'pal.violet':'Violet','pal.blue':'Blue','pal.pink':'Pink','pal.emerald':'Emerald','pal.rose':'Rose','pal.amber':'Amber',
  'hero.eyebrow':'Game localization for Windows',
  'hero.title':'Your games, <span class="hl">in Arabic</span>.',
  'hero.sub':'{name} translates game text into Arabic on your own PC, with no API keys and without touching game protections.',
@@ -599,7 +601,7 @@ en: {
  'f3.t':'Official library','f3.d':'Install, update and remove ready-made translations from inside the app, with a backup and a game-version check. It covers a number of tested games and keeps growing.',
  'f4.t':'My personal library','f4.d':'A place for your own translation projects on your PC. Still being built, and nothing is uploaded or shared without your decision.',
  'feat.later':'Being built: your personal library and ready-made library content. Discord sign-in already works. Pricing and subscriptions are not decided yet.',
- 'look.title':'A look inside','look.sub':'Real screenshots of {name} on Windows — in dark mode with the Baby Pink palette.',
+ 'look.title':'A look inside','look.sub':'Real screenshots of {name} on Windows.',
  'look.a1':'Real screenshot of the Settings page and color palette in Dubli','look.a2':'Real screenshot of the live translation workspace in Dubli',
  'look.c1':'Settings and the warm color palette, with account switching.','look.c2':'Live translation workspace: picking the game window and capture method.',
  'look.note':'These are real screenshots of the app, captured by us — not game screenshots or cover art.',
@@ -653,11 +655,11 @@ en: {
     get: function(k){ try { return localStorage.getItem(k); } catch(e){ return null; } },
     set: function(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
   };
-  var PALS = ['honey','pink','beige','sage','navy','lav'];
+  var PALS = ['violet','blue','pink','emerald','rose','amber'];
   var lang = store.get('lang') === 'en' ? 'en' : 'ar';
-  var pal = store.get('pal') || 'honey';
+  var pal = store.get('pal') || 'violet';
   var theme = store.get('theme'); // 'light' | 'dark' | null (follow system)
-  if (PALS.indexOf(pal) < 0) pal = 'honey';
+  if (PALS.indexOf(pal) < 0) pal = 'violet';
 
   function name(){ return lang === 'ar' ? CFG.nameAr : CFG.nameEn; }
   function t(k){ var s = (T[lang][k] != null ? T[lang][k] : k); return s.replace(/\{name\}/g, name()); }
