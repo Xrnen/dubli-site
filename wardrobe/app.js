@@ -306,24 +306,25 @@ $('scrim').onclick=closeSheet;
 
 /* ---------------- outfit boards (collage) ---------------- */
 function autoLayout(pieces){
-  const has=c=>pieces.some(p=>p.cat===c), arOf=p=>p.ar||1.2, R=.75; // board w/h
-  const L=[]; const add=(p,x,y,w,z)=>L.push({id:p.id,x,y,w,z});
-  const g=c=>pieces.find(p=>p.cat===c);
-  const outer=g('outer'), top=g('top'), bot=g('bottom'), full=g('full'), shoes=g('shoes'), bag=g('bag'), acc=g('acc');
-  const fitW=(p,w,maxH)=>Math.min(w,maxH/(arOf(p)*R));
-  let yEnd=.04;
-  if(full){ const w=fitW(full,.5,.74); add(full,outer?.40:.25,.04,w,2); yEnd=.04+w*arOf(full)*R; }
-  else {
-    if(top){ const w=fitW(top,outer?.44:.5,.46); add(top,outer?.42:.25,.04,w,3); yEnd=.04+w*arOf(top)*R; }
-    if(bot){ const y=Math.min(yEnd-.05,.42); const w=fitW(bot,.42,.94-y); add(bot,outer?.44:.29,Math.max(.3,y),w,1); }
-  }
-  if(outer){ const w=fitW(outer,.46,.56); add(outer,.03,.06,w,4); }
-  let shoesTop=.97;
-  if(shoes){ const w=fitW(shoes,.30,.2); shoesTop=.95-w*arOf(shoes)*R; add(shoes,.04,shoesTop,w,5); }
-  if(bag){ const w=fitW(bag,.28,.24), bh=w*arOf(bag)*R; add(bag,.03,Math.max(outer?.5:.4,Math.min(outer?.62:.46,shoesTop-bh-.02)),w,6); }
-  if(acc){ const w=fitW(acc,.22,.2); add(acc,.74,.70,w,7); }
-  // anything else (duplicates of a category) — tuck in the corner
-  pieces.filter(p=>!L.some(l=>l.id===p.id)).forEach((p,i)=>add(p,.72,.05+i*.2,.2,8+i));
+  // tidy flat-lay: centred column (top → bottom → shoes), jacket and bag on the sides
+  const R=.75, ar=p=>clamp(p.ar||1.2,.3,3), g=c=>pieces.find(p=>p.cat===c), L=[];
+  const add=(p,x,y,w,z)=>L.push({id:p.id,x:+x.toFixed(4),y:+y.toFixed(4),w:+w.toFixed(4),z});
+  const outer=g('outer'),top=g('top'),bot=g('bottom'),full=g('full'),shoes=g('shoes'),bag=g('bag'),acc=g('acc');
+  const col=[];
+  if(full) col.push({p:full,w:.34,z:2});
+  else { if(top) col.push({p:top,w:.3,z:3}); if(bot) col.push({p:bot,w:.25,z:2,ov:.015}); }
+  if(shoes) col.push({p:shoes,w:.2,z:1,ov:-.025});
+  const hOf=(c,k)=>Math.min(c.w*k*ar(c.p)*R,.5);
+  const total=k=>col.reduce((s,c,i)=>s+hOf(c,k)-(i?(c.ov||0):0),0);
+  let k=1; for(let n=0;n<12&&total(k)>.82;n++) k*=.9;
+  const cx=outer?.45:bag?.53:.5;
+  let y=(1-total(k))/2, topY=y, topW=0;
+  col.forEach((c,i)=>{ if(i) y-=c.ov||0; const h=hOf(c,k), w=h/(ar(c.p)*R);
+    add(c.p,cx-w/2,y,w,c.z); if(i===0){ topY=y; topW=w; } y+=h; });
+  if(outer){ let w=.27*k, h=Math.min(w*ar(outer)*R,.42); w=h/(ar(outer)*R); add(outer,Math.min(.96-w,cx+topW/2-.05),topY-.01,w,1.5); }
+  if(bag){ let w=.2, h=Math.min(w*ar(bag)*R,.24); w=h/(ar(bag)*R); add(bag,Math.max(.04,cx-(topW||.3)/2-w-.0),.5-h/2,w,4); }
+  if(acc){ let w=.13, h=Math.min(w*ar(acc)*R,.14); w=h/(ar(acc)*R); add(acc,outer?.8:.74,outer?.6:.3,w,5); }
+  pieces.filter(p=>!L.some(l=>l.id===p.id)).forEach((p,i)=>add(p,.78,.06+i*.16,.14,8+i));
   return L;
 }
 function boardHTML(layout,cls=''){

@@ -289,6 +289,28 @@ nav.tabs .add svg{width:26px;height:26px}
 .busy .bx{background:var(--surface);border-radius:22px;padding:22px 26px;text-align:center;min-width:220px}
 .spin{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--fg);animation:sp 1s linear infinite;margin:0 auto 12px}
 @keyframes sp{to{transform:rotate(360deg)}}
+
+/* keep a phone-sized column on wide screens */
+header.top,main{max-width:560px;margin-inline:auto}
+nav.tabs,.sheet,.screen{left:0;right:0;margin-inline:auto;max-width:560px}
+@media (min-width:600px){
+  html{background:var(--chip)} body{background:var(--chip)}
+  header.top,main{background:var(--bg)}
+  main{min-height:100dvh;box-shadow:0 0 0 1px var(--line)}
+  nav.tabs{border-inline:1px solid var(--line)}
+}
+/* collages always on white so product photos blend in */
+.board{background:#F3F2F0}
+.board img,.bboard .it img{filter:none!important}
+.board img.nocut,.bboard .it img.nocut{mix-blend-mode:multiply;border-radius:0;filter:none}
+.bboard{background:#F3F2F0}
+.tile img.full{object-fit:contain;padding:8%;mix-blend-mode:multiply}
+@media (prefers-color-scheme:dark){ .tile img.full{mix-blend-mode:normal;border-radius:10px} }
+.ocard>.board{width:min(100%,calc(56vh * .75));margin-inline:auto}
+.ogrid .oc{padding:0;background:transparent;box-shadow:none;border-radius:16px}
+.ogrid .oc .board{border-radius:14px}
+.ogrid .oc .cap{padding:6px 4px 0}
+.ogrid{gap:12px 10px}
 </style>
 </head>
 <body>
