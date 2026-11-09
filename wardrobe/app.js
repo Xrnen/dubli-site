@@ -96,7 +96,7 @@ const now0 = new Date();
 const S = {
   items:[], outfits:[], plans:{}, trips:[], set:{cur:'ر.س', wxOn:false, tipClosed:false},
   view:'closet',
-  closet:{cat:'all', q:'', color:null, sort:'new', laundry:false},
+  closet:{cat:'all', q:'', color:null, sort:'new', laundry:false, tab:'items'}, hero:null,
   oTab:'style', occ:'casual', wx:null, wxManual:false, wxInfo:null, planDate:null,
   results:[], idx:0, locks:{}, look:'all', shown:new Set(),
   pTab:'cal', cal:{y:now0.getFullYear(), m:now0.getMonth()},
@@ -644,7 +644,7 @@ function render(){
   ({closet:renderCloset,outfits:renderOutfits,plan:renderPlan,stats:renderStats})[S.view]();
 }
 function go(v){
-  S.view=v; ['closet','outfits','plan','stats'].forEach(x=>$('v-'+x).classList.toggle('hidden',x!==v));
+  S.view=v; document.body.classList.toggle('home',v==='closet'); ['closet','outfits','plan','stats'].forEach(x=>$('v-'+x).classList.toggle('hidden',x!==v));
   document.querySelectorAll('nav .t').forEach(t=>t.classList.toggle('on',t.dataset.v===v));
   render(); window.scrollTo(0,0);
 }
@@ -659,36 +659,110 @@ function closetList(){
     price:(a,b)=>(+b.price||0)-(+a.price||0),color:(a,b)=>colorInfo(a.color).h-colorInfo(b.color).h}[C.sort];
   return l.sort(srt);
 }
+const pct = s => clamp(Math.round(62+(s-4)*5.5),55,99);
+function greeting(){ const h=new Date().getHours(); return h<12?'صباح الخير ☀️':h<18?'يومك سعيد 🌤️':'مساء الخير 🌙'; }
+function canStyle(){ const has=c=>S.items.some(i=>i.cat===c&&!i.laundry); return (has('top')&&has('bottom'))||has('full'); }
+function heroHTML(){
+  if(!canStyle()) return '';
+  const valid=o=>o&&o.pieces.every(p=>S.items.includes(p)&&!p.laundry);
+  if(!S.hero||S.hero.day!==today()||!valid(S.hero.o)){
+    if(!S.wxManual) S.wx=wxFor(today());
+    const r=generate({n:1,look:'all',locks:{}}); S.hero=r[0]?{day:today(),o:r[0]}:null; }
+  if(!S.hero) return '';
+  const o=S.hero.o, ex=explain(o), w=WXM[S.wx];
+  return `<button class="hero" id="heroBtn"><div class="tx"><span class="kick">أوتفت اليوم · ${w.e} ${w.ar}</span>
+    <b>${ex.title.replace(/^\S+\s/,'')}</b><span class="sm">${OCC[S.occ].ar} · تناسق ${pct(o.s)}%</span><span class="go">شوفه</span></div>
+    ${boardHTML(autoLayout(sortPieces(o.pieces)))}</button>`;
+}
+const CAT_IC = {
+  top:'<path d="M8 4 4 6.5 5.5 10 7 9.4V20h10V9.4l1.5.6L20 6.5 16 4c-.6 1.4-2.1 2.3-4 2.3S8.6 5.4 8 4z"/>',
+  bottom:'<path d="M7 3h10l1 18h-4.5L12 9.5 10.5 21H6z"/>',
+  full:'<path d="M9.5 3h5l-.8 4 4.3 13H6l4.3-13z"/>',
+  outer:'<path d="M8 3.5 4 6v14h5V12M16 3.5 20 6v14h-5V12M8 3.5 12 8l4-4.5M12 8v12"/>',
+  shoes:'<path d="M3 16.5V9l4.5 1.5L11 13l6 1.5c2.2.5 4 1.6 4 3.5H3z"/>',
+  bag:'<path d="M5 9h14l-1 11H6zM9 9V7a3 3 0 0 1 6 0v2"/>',
+  acc:'<circle cx="12" cy="12" r="5"/><path d="M9.5 7.5 10 3h4l.5 4.5M9.5 16.5 10 21h4l.5-4.5"/>',
+  all:'<rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/>',
+};
+const catSvg = id => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">${CAT_IC[id]}</svg>`;
+function profileHTML(){
+  const worn=Object.values(S.plans).filter(p=>p.worn).length, saved=S.outfits.filter(o=>o.ids.some(byId)).length;
+  const nm=S.set.name||'خزانتي', av=S.set.avatar;
+  return `<div class="profile">
+    <div class="cover" ${S.set.cover?`style="background-image:url('${S.set.cover}')"`:''}>
+      <button class="cbtn" id="pCover" aria-label="غيّر الغلاف">${IC.edit}</button>
+      <button class="cbtn" id="pSet" aria-label="الإعدادات"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
+    </div>
+    <div class="pcard">
+      <button class="avatar" id="pAv" aria-label="صورتك">${av?`<img src="${av}" alt="">`:`<span>${esc(nm.trim()[0]||'خ')}</span>`}</button>
+      <button class="pname" id="pName">${esc(nm)}</button>
+      <div class="handle">${greeting()}</div>
+      <div class="ptabs" id="pTabs">
+        <button class="${S.closet.tab!=='outfits'?'on':''}" data-t="items"><b>${S.items.length}</b><span>قطعة</span></button>
+        <button class="${S.closet.tab==='outfits'?'on':''}" data-t="outfits"><b>${saved}</b><span>أوتفت</span></button>
+        <button data-t="wears"><b>${worn}</b><span>لبسة</span></button>
+      </div>
+    </div></div>`;
+}
 function renderCloset(){
   const v=$('v-closet'), C=S.closet, items=S.items;
   const isIOS=/iP(hone|ad|od)/.test(navigator.userAgent), standalone=navigator.standalone||matchMedia('(display-mode: standalone)').matches;
   const tip = isIOS&&!standalone&&!S.set.tipClosed ? `<div class="banner"><span>📲</span><span>ثبّته كتطبيق: زر <b>المشاركة</b> في سفاري ← <b>«إضافة إلى الشاشة الرئيسية»</b></span><button class="x" id="tipX">✕</button></div>` : '';
+  let body='';
   if(!items.length){
-    v.innerHTML=tip+`<div class="empty"><div class="big">🧺</div><h3>ابدأ بخزانتك</h3>
-      <p class="hint">صوّر قطعة قطعة على خلفية سادة (سرير، أرضية، جدار).<br>التطبيق يشيل الخلفية لحاله ويعرف اللون.</p>
+    body=`<div class="empty"><div class="big">👕</div><h3>ابدأ بخزانتك</h3>
+      <p class="hint">صوّر قطعة قطعة — الذكاء الاصطناعي يشيل الخلفية ويعرف اللون والنوع.</p>
       <button class="btn primary" style="margin-top:14px" onclick="pickPhotos()">صوّر أول قطعة</button></div>`;
+  } else if(C.tab==='outfits'){
+    const list=[...S.outfits].filter(o=>o.ids.some(byId)).sort((a,b)=>b.created-a.created);
+    body=`<div class="ogrid" id="cOutfits"><button class="newcard" id="cNewO">${IC.plus}سوّ أوتفت بنفسك</button>
+      ${list.map(o=>`<button class="oc" data-id="${o.id}">${boardHTML(layoutOf(o))}</button>`).join('')}</div>`;
   } else {
     const count=c=>items.filter(i=>i.cat===c).length;
+    const latest=c=>items.filter(i=>i.cat===c).sort((a,b)=>b.added-a.added)[0];
     const fams=[...new Set(items.map(i=>colorInfo(i.color).family))];
     const laundryN=items.filter(i=>i.laundry).length;
     const list=closetList();
-    v.innerHTML=tip+`
+    body=`${heroHTML()}
+      <div class="cats" id="ccats"><button class="cat ${C.cat==='all'?'on':''}" data-v="all"><span class="c">${catSvg('all')}</span>الكل</button>
+        ${CATS.filter(c=>count(c.id)).map(c=>{ const it=latest(c.id); return `<button class="cat ${C.cat===c.id?'on':''}" data-v="${c.id}">
+          <span class="c ${it?'ph':''}">${it?`<img src="${it.img}" alt="">`:catSvg(c.id)}<span class="n">${count(c.id)}</span></span>${c.ar}</button>`; }).join('')}</div>
       <div class="search">${IC.search}<input id="cq" type="search" placeholder="ابحث: اسم، ماركة، لون، تاق…" value="${esc(C.q)}">
         <select id="csort">${[['new','الأحدث'],['most','الأكثر لبس'],['least','الأقل لبس'],['price','السعر'],['color','اللون']].map(([k,t])=>`<option value="${k}" ${C.sort===k?'selected':''}>${t}</option>`).join('')}</select></div>
-      <div class="chips" id="ccats"><button class="chip ${C.cat==='all'?'on':''}" data-v="all">الكل <span class="n">${items.length}</span></button>
-        ${CATS.filter(c=>count(c.id)).map(c=>`<button class="chip ${C.cat===c.id?'on':''}" data-v="${c.id}">${c.e} ${c.ar} <span class="n">${count(c.id)}</span></button>`).join('')}</div>
       <div class="chips" id="ccols" style="margin-top:-4px">
         ${laundryN?`<button class="chip ${C.laundry?'on':''}" data-l="1">🧺 بالغسيل <span class="n">${laundryN}</span></button>`:''}
         ${fams.map(f=>`<button class="chip dotchip ${C.color===f?'on':''}" data-c="${f}" aria-label="${esc(colorInfo(f).name)}"><span class="sw" style="background:${f}"></span></button>`).join('')}</div>
       ${list.length?`<div class="grid" id="cgrid">${list.map(tileHTML).join('')}</div>`:`<div class="empty"><h3>ما فيه نتائج</h3><p class="hint">جرّب فلتر ثاني.</p></div>`}`;
+  }
+  v.innerHTML=profileHTML()+tip+body;
+  // profile
+  $('pSet').onclick=()=>$('settingsBtn').click();
+  $('pAv').onclick=()=>pickProfileImg('avatar',256);
+  $('pCover').onclick=()=>pickProfileImg('cover',900);
+  $('pName').onclick=async()=>{ const n=prompt('وش اسمك؟',S.set.name||''); if(n===null) return; S.set.name=n.trim(); await saveSet(); renderCloset(); };
+  $('pTabs').onclick=e=>{ const b=e.target.closest('[data-t]'); if(!b) return; if(b.dataset.t==='wears'){ S.pTab='cal'; go('plan'); return; } C.tab=b.dataset.t; renderCloset(); };
+  if($('heroBtn')) $('heroBtn').onclick=()=>{ const o=S.hero.o; S.locks={}; S.look='all'; S.planDate=null;
+    S.results=[o,...generate().filter(x=>x.key!==o.key)].slice(0,6); S.idx=0; S.oTab='style'; go('outfits'); };
+  if($('cNewO')) $('cNewO').onclick=()=>openBuilder({onSave:async(ids,layout)=>{ await saveOutfit(ids,layout); toast('انحفظ ♥'); }});
+  if($('cOutfits')) $('cOutfits').onclick=e=>{ const c=e.target.closest('.oc'); if(c) outfitSheet(S.outfits.find(o=>o.id===c.dataset.id)); };
+  if($('cq')){
     $('cq').oninput=e=>{ C.q=e.target.value; const l=closetList(); const g=$('cgrid'); if(g) g.innerHTML=l.map(tileHTML).join(''); else renderCloset(); };
     $('csort').onchange=e=>{ C.sort=e.target.value; renderCloset(); };
     $('ccats').onclick=e=>{ const b=e.target.closest('[data-v]'); if(!b) return; C.cat=b.dataset.v; renderCloset(); };
     $('ccols').onclick=e=>{ const b=e.target.closest('button'); if(!b) return;
       if(b.dataset.l) C.laundry=!C.laundry; else C.color=C.color===b.dataset.c?null:b.dataset.c; renderCloset(); };
-    v.onclick=e=>{ const t=e.target.closest('.tile'); if(t) itemSheet(byId(t.dataset.id)); };
   }
+  v.onclick=e=>{ const t=e.target.closest('.tile'); if(t) itemSheet(byId(t.dataset.id)); };
   if($('tipX')) $('tipX').onclick=async()=>{ S.set.tipClosed=true; await saveSet(); renderCloset(); };
+}
+function pickProfileImg(key,max){
+  const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
+  inp.onchange=async()=>{ const f=inp.files[0]; if(!f) return; const u=URL.createObjectURL(f);
+    try{ const im=await loadImg(u); let c=srcFromImage(im,max);
+      if(key==='avatar'){ const s=Math.min(c.width,c.height), q=mkCanvas(s,s); q.getContext('2d').drawImage(c,(c.width-s)/2,(c.height-s)/2,s,s,0,0,s,s); c=q; }
+      S.set[key]=c.toDataURL('image/jpeg',.82); await saveSet(); renderCloset(); }catch(e){ toast('ما قدرت أقرأ الصورة'); }
+    URL.revokeObjectURL(u); };
+  inp.click();
 }
 function tileHTML(i){
   return `<button class="tile ${i.laundry?'laundry':''}" data-id="${i.id}"><img src="${i.img}" class="${i.cut?'':'full'}" alt="" loading="lazy">
@@ -838,7 +912,7 @@ async function editItem(list,i,isNew){
     if(it._src){ it.src=it._src.toDataURL('image/jpeg',.85); it.mask=it._alpha?alphaToURL(it._alpha,it._src.width,it._src.height):null; }
     const rec={}; for(const k in it) if(k[0]!=='_') rec[k]=it[k];
     await DB.put('items',rec); const k=S.items.findIndex(x=>x.id===rec.id); if(k<0) S.items.push(rec); else S.items[k]=rec;
-    S.results=[]; render(); toast('انحفظت ✓'); next(); };
+    S.results=[]; S.hero=null; render(); toast('انحفظت ✓'); next(); };
   if($('eSkip')) $('eSkip').onclick=next;
 }
 
@@ -878,7 +952,7 @@ function renderStylist(){
   const ps=sortPieces(o.pieces), saved=S.outfits.some(x=>x.key===o.key), ex=explain(o);
   S.shown.add(o.key);
   b.innerHTML=head+`<div class="ocard">
-      <div class="lookhead"><b>${ex.title}</b><span class="stars">${starsOf(o.s)}</span></div>
+      <div class="lookhead"><b>${ex.title}</b><span class="score">تناسق ${pct(o.s)}%</span></div>
       <p class="lookdesc">${ex.desc}</p>
       ${boardHTML(autoLayout(ps))}
       <div class="pieces" id="pcs">${ps.map(p=>`<div class="pc"><div class="im"><img src="${p.img}" alt=""></div>
