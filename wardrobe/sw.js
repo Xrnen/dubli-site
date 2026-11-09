@@ -1,5 +1,5 @@
 // Offline cache for the app shell. Photos live in IndexedDB on the device.
-const CACHE = 'khzanti-v2';
+const CACHE = 'khzanti-v3';
 const SHELL = ['./', './index.html', './app.js', './manifest.webmanifest', './IBMPlexSansArabic-Medium.ttf',
   './icons/apple-touch-icon.png', './icons/icon-192.png', './icons/icon-512.png'];
 self.addEventListener('install', e => {

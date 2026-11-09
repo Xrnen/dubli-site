@@ -161,7 +161,10 @@ nav.tabs .add svg{width:26px;height:26px}
 .pal i{width:18px;height:18px;border-radius:50%;box-shadow:0 0 0 2px var(--surface);margin-inline-start:-5px}
 .pal i:first-child{margin-inline-start:0}
 .stars{margin-inline-start:auto;color:var(--gold);font-size:13px;letter-spacing:1px}
-.why{font-size:14px;color:var(--muted);line-height:1.75;margin:8px 2px 12px}
+.why{font-size:14px;color:var(--muted);line-height:1.8;margin:8px 0 12px;padding-inline-start:20px}
+.lookhead{display:flex;align-items:center;gap:8px;margin:2px 2px 2px}
+.lookhead b{font-weight:500;font-size:17px}
+.lookdesc{font-size:13px;color:var(--muted);margin:0 2px 10px;line-height:1.7}
 .pager{display:flex;justify-content:center;gap:5px;margin:2px 0 12px}
 .pager i{width:6px;height:6px;border-radius:50%;background:var(--line)}
 .pager i.on{background:var(--fg);width:16px;border-radius:3px}
@@ -238,6 +241,20 @@ nav.tabs .add svg{width:26px;height:26px}
 .hlist .h .im{width:86px;height:100px;border-radius:14px;background:var(--tile);display:grid;place-items:center;margin-bottom:5px}
 .hlist .h img{width:68px;height:80px;object-fit:contain}
 
+.imgtools{display:grid;gap:10px;margin-bottom:18px}
+.tgl{display:flex;align-items:center;gap:10px;font-size:14px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:11px 14px}
+.tgl input{width:20px;height:20px;accent-color:var(--hi)}
+.slider{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:8px 14px}
+.slider input{flex:1;accent-color:var(--fg)}
+.tstage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:6px 16px}
+.tcv{position:relative;touch-action:none;border-radius:16px;overflow:hidden;
+  background:repeating-conic-gradient(var(--tile) 0 25%,var(--surface) 0 50%) 0 0/20px 20px}
+.tcv canvas{position:absolute;inset:0;width:100%;height:100%}
+#tBase{opacity:.28}
+.tcur{position:absolute;border:2px solid var(--hi);border-radius:50%;pointer-events:none;transform:translate(-50%,-50%);display:none;box-shadow:0 0 0 1px #fff}
+.tpanel{background:var(--surface);border-radius:24px 24px 0 0;padding:14px 16px calc(14px + var(--safe-b));display:grid;gap:10px;box-shadow:0 -8px 24px -18px rgba(0,0,0,.4)}
+.tpanel .btn{padding:11px 8px;font-size:14px}
+.tpanel .slider{border:0;background:var(--chip)}
 /* builder */
 .screen{position:fixed;inset:0;z-index:40;background:var(--bg);display:flex;flex-direction:column;padding-top:var(--safe-t);
   transform:translateY(100%);transition:transform .32s cubic-bezier(.2,.8,.2,1);visibility:hidden}
@@ -310,6 +327,22 @@ nav.tabs .add svg{width:26px;height:26px}
   <div class="tray">
     <div class="chips" id="bCats"></div>
     <div class="row2" id="bTray"></div>
+  </div>
+</div>
+
+<!-- manual photo touch-up -->
+<div class="screen" id="touch">
+  <div class="bar2">
+    <button class="btn ghost" id="tCancel">إلغاء</button>
+    <h3>تعديل يدوي</h3>
+    <button class="btn primary" id="tDone">تم</button>
+  </div>
+  <div class="tstage" id="tStage"><div class="tcv" id="tCv"><canvas id="tBase"></canvas><canvas id="tTop"></canvas><div class="tcur" id="tCur"></div></div></div>
+  <div class="tpanel">
+    <div class="seg" id="tMode"><button class="on" data-v="erase">🧽 امسح الخلفية</button><button data-v="restore">🖌️ رجّع جزء</button></div>
+    <div class="slider"><span class="muted" style="font-size:13px">الفرشاة</span><input type="range" id="tSize" min="6" max="90" value="28"></div>
+    <div class="row"><button class="btn" id="tUndo">↩️ تراجع</button><button class="btn" id="tRot">🔄 تدوير</button><button class="btn" id="tReset">♻️ من جديد</button></div>
+    <p class="hint" style="text-align:center;margin:8px 0 0">امسح بإصبعك على أي بقايا خلفية — الجزء الباهت هو اللي انشال</p>
   </div>
 </div>
 
