@@ -4,11 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>خزانتي</title>
-<meta name="description" content="صوّر ملابسك وخل التطبيق ينسّق لك أوتفت كل يوم.">
-<meta name="theme-color" content="#0F0C1D">
+<meta name="description" content="خزانتك الرقمية: صوّر ملابسك، تنسيق أوتفتات، تقويم، سفرات وإحصائيات.">
+<meta name="theme-color" content="#F6F4F0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121110" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="خزانتي">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
@@ -16,679 +17,309 @@
 <style>
 @font-face{font-family:'Plex Arabic';src:url('IBMPlexSansArabic-Medium.ttf') format('truetype');font-display:swap}
 :root{
-  --bg:#0F0C1D;--bg2:#171329;--card:#1F1A36;--card2:#2A2347;--fg:#F4F1FF;--muted:#A49DC4;--line:#332C55;
-  --a1:#8B6CFF;--a2:#FF7AB6;--gold:#FFD166;--ok:#3DDC97;--bad:#FF6B6B;
-  --r:18px;--safe-b:env(safe-area-inset-bottom);--safe-t:env(safe-area-inset-top);
+  --bg:#F6F4F0;--surface:#FFFFFF;--tile:#EFEBE5;--chip:#ECE7E0;--fg:#191613;--muted:#8C857C;--line:#E5DFD6;
+  --accent:#191613;--on-accent:#FFFFFF;--hi:#B5552E;--gold:#C9962B;--ok:#2F8F5B;--bad:#C2412D;
+  --board:#FFFFFF;--shadow:0 12px 32px -18px rgba(40,30,20,.35);
+  --r:20px;--safe-b:env(safe-area-inset-bottom);--safe-t:env(safe-area-inset-top);
 }
+@media (prefers-color-scheme:dark){:root{
+  --bg:#121110;--surface:#1C1A18;--tile:#262320;--chip:#262320;--fg:#F3EFEA;--muted:#9A938A;--line:#2E2A26;
+  --accent:#F3EFEA;--on-accent:#121110;--hi:#E07A4F;--gold:#E2B04A;--board:#201E1B;--shadow:0 12px 32px -18px rgba(0,0,0,.8);
+}}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;background:var(--bg);color:var(--fg);font-family:'Plex Arabic',-apple-system,system-ui,sans-serif;
-  -webkit-font-smoothing:antialiased;overscroll-behavior:none}
+  -webkit-font-smoothing:antialiased;overscroll-behavior-y:none}
 body{min-height:100dvh;padding-top:var(--safe-t)}
-button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
-input,select{font:inherit}
-h1,h2,h3{margin:0;font-weight:500}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;padding:0}
+input,select,textarea{font:inherit;color:inherit}
+h1,h2,h3,h4{margin:0;font-weight:500}
 .hidden{display:none!important}
+.muted{color:var(--muted)}
+svg.i{width:22px;height:22px;flex:none}
 
-header.top{position:sticky;top:0;z-index:5;background:linear-gradient(var(--bg) 70%,transparent);padding:14px 18px 10px;
-  display:flex;align-items:center;justify-content:space-between;gap:10px}
-header.top h1{font-size:26px;letter-spacing:-.3px}
-header.top .sub{color:var(--muted);font-size:13px;margin-top:2px}
-.iconbtn{width:42px;height:42px;border-radius:14px;background:var(--card);display:grid;place-items:center;flex:none}
-.iconbtn svg{width:22px;height:22px}
+/* header */
+header.top{position:sticky;top:0;z-index:5;background:var(--bg);padding:12px 18px 8px;display:flex;align-items:flex-end;gap:10px}
+header.top .tt{flex:1;min-width:0}
+header.top h1{font-size:30px;letter-spacing:-.5px;line-height:1.2}
+header.top .sub{color:var(--muted);font-size:13px}
+.iconbtn{width:42px;height:42px;border-radius:50%;background:var(--surface);display:grid;place-items:center;flex:none;box-shadow:var(--shadow)}
 
-main{padding:0 16px calc(110px + var(--safe-b))}
-.view{animation:fade .25s ease}
-@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+main{padding:4px 16px calc(112px + var(--safe-b))}
+.view{animation:fade .22s ease}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 
-/* chips */
-.chips{display:flex;gap:8px;overflow-x:auto;padding:4px 0 12px;scrollbar-width:none;margin:0 -16px;padding-inline:16px}
+/* controls */
+.chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:2px 16px 12px}
 .chips::-webkit-scrollbar{display:none}
-.chip{flex:none;padding:8px 14px;border-radius:999px;background:var(--card);color:var(--muted);font-size:14px;white-space:nowrap;
-  border:1px solid transparent;transition:.15s}
-.chip.on{background:var(--fg);color:var(--bg)}
-.chip .n{opacity:.6;margin-inline-start:4px;font-size:12px}
+.chip{flex:none;display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;background:var(--chip);color:var(--fg);
+  font-size:14px;white-space:nowrap;border:1px solid transparent}
+.chip.on{background:var(--accent);color:var(--on-accent)}
+.chip .n{opacity:.55;font-size:12px}
+.chip.dotchip{padding:6px}
+.chip .sw{width:20px;height:20px;border-radius:50%;border:1px solid rgba(0,0,0,.12)}
+.chip.dotchip.on{background:var(--surface);border-color:var(--fg)}
 .wrapchips{display:flex;flex-wrap:wrap;gap:8px}
+.seg{display:flex;background:var(--chip);border-radius:14px;padding:3px;gap:3px}
+.seg button{flex:1;padding:9px 6px;border-radius:11px;font-size:14px;color:var(--muted);white-space:nowrap}
+.seg button.on{background:var(--surface);color:var(--fg);box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.seg.big{margin-bottom:14px}
+.search{display:flex;align-items:center;gap:8px;background:var(--surface);border-radius:14px;padding:0 12px;margin-bottom:12px;border:1px solid var(--line)}
+.search input{flex:1;border:0;background:none;padding:12px 0;outline:none;font-size:15px;min-width:0}
+.search select{border:0;background:none;color:var(--muted);font-size:13px;outline:none;max-width:110px}
 
-/* wardrobe grid */
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.tile{position:relative;aspect-ratio:3/4;border-radius:16px;overflow:hidden;background:var(--card);padding:0}
-.tile img{width:100%;height:100%;object-fit:cover;display:block}
-.tile .dot{position:absolute;bottom:7px;inset-inline-start:7px;width:16px;height:16px;border-radius:50%;border:2px solid #fff;
-  box-shadow:0 1px 4px rgba(0,0,0,.4)}
-.tile .fav{position:absolute;top:6px;inset-inline-end:6px;color:var(--gold);font-size:15px;text-shadow:0 1px 3px #000}
-.empty{text-align:center;padding:50px 20px;color:var(--muted)}
-.empty .big{font-size:56px;margin-bottom:8px}
-.empty h3{color:var(--fg);font-size:19px;margin-bottom:6px}
-.stats{display:flex;gap:10px;margin-bottom:14px}
-.stat{flex:1;background:var(--card);border-radius:16px;padding:12px 14px}
-.stat b{font-size:22px;display:block;font-weight:500}
-.stat span{font-size:12px;color:var(--muted)}
-
-/* buttons */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:14px 20px;border-radius:16px;font-size:16px;
-  background:var(--card2);transition:transform .1s}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:14px 18px;border-radius:16px;font-size:15px;
+  background:var(--chip);transition:transform .1s;white-space:nowrap}
 .btn:active{transform:scale(.97)}
-.btn.primary{background:linear-gradient(135deg,var(--a1),var(--a2));color:#fff;box-shadow:0 10px 30px -12px var(--a1)}
+.btn.primary{background:var(--accent);color:var(--on-accent)}
 .btn.block{width:100%}
 .btn.ghost{background:transparent;border:1px solid var(--line)}
-.btn.danger{background:rgba(255,107,107,.14);color:var(--bad)}
+.btn.danger{background:transparent;color:var(--bad);border:1px solid var(--line)}
+.btn.sq{flex:none;width:52px;padding:14px 0}
 .btn svg{width:20px;height:20px}
 .row{display:flex;gap:10px}
 .row>.btn{flex:1}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* closet grid */
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tile{position:relative;aspect-ratio:4/5;border-radius:16px;overflow:hidden;background:var(--tile);display:block;width:100%}
+.tile img{width:100%;height:100%;object-fit:contain;padding:10%;display:block}
+.tile img.full{object-fit:cover;padding:0}
+.tile .dot{position:absolute;bottom:8px;inset-inline-start:8px;width:12px;height:12px;border-radius:50%;box-shadow:0 0 0 2px var(--surface)}
+.tile .badges{position:absolute;top:7px;inset-inline-end:7px;display:flex;gap:4px;font-size:12px}
+.tile .badges span{background:var(--surface);border-radius:999px;padding:1px 6px;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.tile.laundry img{opacity:.38}
+.secthead{display:flex;align-items:baseline;justify-content:space-between;margin:18px 2px 10px}
+.secthead h3{font-size:17px}
+.secthead small{color:var(--muted);font-size:13px}
+
+.empty{text-align:center;padding:40px 16px;color:var(--muted)}
+.empty .big{font-size:52px;margin-bottom:8px}
+.empty h3{color:var(--fg);font-size:19px;margin-bottom:6px}
+.hint{font-size:13px;color:var(--muted);line-height:1.75}
+.banner{background:var(--surface);border-radius:18px;padding:14px 16px;margin-bottom:12px;font-size:14px;line-height:1.8;
+  display:flex;gap:10px;align-items:flex-start;box-shadow:var(--shadow)}
+.banner b{color:var(--hi);font-weight:500}
+.banner .x{margin-inline-start:auto;color:var(--muted);font-size:18px;line-height:1}
 
 /* tab bar */
-nav.tabs{position:fixed;inset-inline:12px;bottom:calc(10px + var(--safe-b));z-index:10;display:flex;align-items:center;
-  background:rgba(31,26,54,.86);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid var(--line);
-  border-radius:24px;padding:6px}
-nav.tabs .t{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 0;color:var(--muted);font-size:11px;border-radius:18px}
-nav.tabs .t svg{width:24px;height:24px}
+nav.tabs{position:fixed;inset-inline:0;bottom:0;z-index:10;display:flex;align-items:center;background:color-mix(in srgb,var(--surface) 88%,transparent);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid var(--line);padding:6px 8px calc(6px + var(--safe-b))}
+nav.tabs .t{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;color:var(--muted);font-size:11px}
 nav.tabs .t.on{color:var(--fg)}
-nav.tabs .add{flex:none;width:58px;height:58px;border-radius:20px;margin:0 6px;display:grid;place-items:center;color:#fff;
-  background:linear-gradient(135deg,var(--a1),var(--a2));box-shadow:0 10px 28px -8px var(--a2)}
-nav.tabs .add svg{width:28px;height:28px}
+nav.tabs .add{flex:none;width:54px;height:54px;border-radius:18px;margin:0 4px;display:grid;place-items:center;
+  background:var(--accent);color:var(--on-accent);box-shadow:var(--shadow)}
+nav.tabs .add svg{width:26px;height:26px}
 
 /* sheet */
-.scrim{position:fixed;inset:0;background:rgba(5,3,12,.6);z-index:20;opacity:0;pointer-events:none;transition:.25s}
+.scrim{position:fixed;inset:0;background:rgba(10,8,6,.42);z-index:30;opacity:0;pointer-events:none;transition:.25s}
 .scrim.on{opacity:1;pointer-events:auto}
-.sheet{position:fixed;inset-inline:0;bottom:0;z-index:21;background:var(--bg2);border-radius:26px 26px 0 0;max-height:92dvh;
-  overflow-y:auto;transform:translateY(105%);transition:transform .3s cubic-bezier(.2,.8,.2,1);
-  padding:10px 18px calc(22px + var(--safe-b))}
-.sheet.on{transform:none}
-.sheet .grab{width:42px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 14px}
-.sheet h2{font-size:20px;margin-bottom:14px}
+.sheet{position:fixed;inset-inline:0;bottom:0;z-index:31;background:var(--bg);border-radius:26px 26px 0 0;max-height:93dvh;overflow-y:auto;
+  transform:translateY(110%);transition:transform .32s cubic-bezier(.2,.8,.2,1);padding:10px 18px calc(24px + var(--safe-b));visibility:hidden}
+.sheet.on{transform:none;visibility:visible}
+.sheet .grab{width:40px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 12px}
+.sheet h2{font-size:21px;margin-bottom:14px}
+.sheethead{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.sheethead h2{flex:1;margin:0}
 .field{margin-bottom:16px}
-.field>label{display:block;color:var(--muted);font-size:13px;margin-bottom:8px}
-.preview{width:100%;aspect-ratio:1;border-radius:20px;overflow:hidden;background:var(--card);margin-bottom:16px;position:relative}
-.preview img{width:100%;height:100%;object-fit:contain}
-.preview .count{position:absolute;top:10px;inset-inline-start:10px;background:rgba(0,0,0,.55);border-radius:999px;padding:4px 10px;font-size:13px}
-.swatches{display:flex;flex-wrap:wrap;gap:10px}
-.sw{width:34px;height:34px;border-radius:50%;border:2px solid rgba(255,255,255,.15);position:relative}
-.sw.on{outline:3px solid var(--fg);outline-offset:2px}
-.colorname{font-size:13px;color:var(--muted);margin-inline-start:6px}
+.field>label,.lbl{display:block;color:var(--muted);font-size:13px;margin-bottom:8px}
+.inp{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px;font-size:15px;outline:none}
+.inp:focus{border-color:var(--fg)}
+.preview{width:100%;aspect-ratio:1;border-radius:22px;overflow:hidden;margin-bottom:10px;position:relative;
+  background:repeating-conic-gradient(var(--tile) 0 25%,var(--surface) 0 50%) 0 0/22px 22px}
+.preview img{width:100%;height:100%;object-fit:contain;padding:6%}
+.preview img.full{padding:0}
+.preview .count{position:absolute;top:10px;inset-inline-start:10px;background:rgba(0,0,0,.55);color:#fff;border-radius:999px;padding:3px 10px;font-size:13px}
+.swatches{display:flex;flex-wrap:wrap;gap:9px}
+.sw{width:32px;height:32px;border-radius:50%;border:1px solid rgba(0,0,0,.12)}
+.sw.on{outline:2.5px solid var(--fg);outline-offset:2px}
+.kv{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.kv div{background:var(--surface);border-radius:14px;padding:10px 12px}
+.kv b{display:block;font-size:17px;font-weight:500}
+.kv span{font-size:12px;color:var(--muted)}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.tags span{font-size:12px;background:var(--chip);border-radius:999px;padding:3px 10px;color:var(--muted)}
 
-/* stylist */
-.ctrl{background:var(--card);border-radius:var(--r);padding:14px;margin-bottom:14px}
-.ctrl .lbl{font-size:13px;color:var(--muted);margin-bottom:8px}
-.seg{display:flex;background:var(--bg2);border-radius:14px;padding:4px;gap:4px}
-.seg button{flex:1;padding:9px 4px;border-radius:11px;font-size:14px;color:var(--muted)}
-.seg button.on{background:var(--card2);color:var(--fg)}
-.outfit{background:var(--card);border-radius:24px;padding:14px;margin-bottom:14px;position:relative}
-.board{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.piece{position:relative;border-radius:16px;overflow:hidden;background:#fff;aspect-ratio:3/4}
-.piece.wide{grid-column:span 2;aspect-ratio:auto;height:260px}
-.piece.small{aspect-ratio:1}
-.piece img{width:100%;height:100%;object-fit:contain;background:#fff}
-.piece .tag{position:absolute;bottom:6px;inset-inline-start:6px;background:rgba(15,12,29,.72);color:#fff;font-size:11px;border-radius:999px;padding:3px 9px}
-.piece .lock{position:absolute;top:6px;inset-inline-end:6px;width:32px;height:32px;border-radius:50%;background:rgba(15,12,29,.6);
-  color:#fff;display:grid;place-items:center}
-.piece .lock svg{width:16px;height:16px}
-.piece .lock.on{background:var(--gold);color:#000}
-.score{display:flex;align-items:center;gap:10px;margin:14px 2px 4px}
-.score .pal{display:flex}
-.score .pal i{width:22px;height:22px;border-radius:50%;border:2px solid var(--card);margin-inline-start:-6px}
-.score .pal i:first-child{margin-inline-start:0}
-.score .val{margin-inline-start:auto;font-size:13px;color:var(--gold)}
-.why{font-size:14px;color:var(--muted);line-height:1.7;margin:6px 2px 12px}
-.pager{display:flex;justify-content:center;gap:6px;margin:4px 0 12px}
-.pager i{width:7px;height:7px;border-radius:50%;background:var(--line)}
-.pager i.on{background:var(--fg);width:18px;border-radius:4px}
-.weather{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin-top:10px}
+/* outfit board (collage) */
+.board{position:relative;width:100%;aspect-ratio:3/4;background:var(--board);border-radius:22px;overflow:hidden}
+.board img{position:absolute;display:block;height:auto;pointer-events:none;user-select:none;-webkit-user-select:none;
+  filter:drop-shadow(0 6px 10px rgba(0,0,0,.14))}
+.board img.nocut{border-radius:8%;filter:none}
+.ocard{background:var(--surface);border-radius:24px;padding:12px;box-shadow:var(--shadow);margin-bottom:14px}
+.ocard .board{border-radius:16px}
+.pieces{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:12px -12px 0;padding:0 12px}
+.pieces::-webkit-scrollbar{display:none}
+.pc{flex:none;width:62px;position:relative}
+.pc .im{width:62px;height:62px;border-radius:14px;background:var(--tile);display:grid;place-items:center;overflow:hidden}
+.pc img{width:52px;height:52px;object-fit:contain}
+.pc .lk{position:absolute;top:-5px;inset-inline-end:-5px;width:24px;height:24px;border-radius:50%;background:var(--surface);
+  display:grid;place-items:center;box-shadow:0 1px 4px rgba(0,0,0,.2);color:var(--muted)}
+.pc .lk svg{width:13px;height:13px}
+.pc .lk.on{background:var(--hi);color:#fff}
+.meta{display:flex;align-items:center;gap:10px;margin:12px 2px 2px}
+.pal{display:flex}
+.pal i{width:18px;height:18px;border-radius:50%;box-shadow:0 0 0 2px var(--surface);margin-inline-start:-5px}
+.pal i:first-child{margin-inline-start:0}
+.stars{margin-inline-start:auto;color:var(--gold);font-size:13px;letter-spacing:1px}
+.why{font-size:14px;color:var(--muted);line-height:1.75;margin:8px 2px 12px}
+.pager{display:flex;justify-content:center;gap:5px;margin:2px 0 12px}
+.pager i{width:6px;height:6px;border-radius:50%;background:var(--line)}
+.pager i.on{background:var(--fg);width:16px;border-radius:3px}
+.wxbar{display:flex;align-items:center;gap:12px;background:var(--surface);border-radius:20px;padding:12px 14px;margin-bottom:12px;box-shadow:var(--shadow)}
+.wxbar .tmp{font-size:28px;line-height:1}
+.wxbar .d{flex:1;font-size:13px;color:var(--muted);line-height:1.5}
+.wxbar .d b{color:var(--fg);font-weight:500;font-size:15px}
+.wxbar .btn{padding:9px 12px;font-size:13px;border-radius:12px}
+.plannote{display:flex;align-items:center;gap:8px;background:var(--hi);color:#fff;border-radius:14px;padding:10px 14px;margin-bottom:12px;font-size:14px}
+.plannote button{margin-inline-start:auto;color:#fff;font-size:18px}
 
-/* saved */
-.saved{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.scard{background:var(--card);border-radius:18px;padding:8px;text-align:start}
-.scard .mini{display:grid;grid-template-columns:1fr 1fr;gap:4px}
-.scard .mini img{width:100%;aspect-ratio:1;object-fit:contain;background:#fff;border-radius:10px}
-.scard .meta{font-size:12px;color:var(--muted);padding:8px 4px 2px;display:flex;justify-content:space-between}
+.ogrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ogrid .oc{background:var(--surface);border-radius:20px;padding:8px;box-shadow:var(--shadow);text-align:start;display:block;width:100%}
+.ogrid .oc .board{border-radius:14px}
+.ogrid .oc .cap{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);padding:8px 4px 2px}
+.newcard{border:1.5px dashed var(--line);border-radius:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:6px;color:var(--muted);font-size:14px;min-height:200px;width:100%}
+.newcard svg{width:30px;height:30px}
 
-.toast{position:fixed;left:50%;top:calc(14px + var(--safe-t));transform:translate(-50%,-140%);z-index:40;background:var(--fg);color:var(--bg);
-  padding:10px 18px;border-radius:999px;font-size:14px;transition:transform .3s;white-space:nowrap}
+/* calendar */
+.calhead{display:flex;align-items:center;justify-content:space-between;margin:0 2px 10px}
+.calhead h3{font-size:18px}
+.calhead button{width:36px;height:36px;border-radius:50%;background:var(--surface);display:grid;place-items:center;box-shadow:var(--shadow)}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.cal .wd{text-align:center;font-size:11px;color:var(--muted);padding-bottom:4px}
+.cal .d{position:relative;aspect-ratio:3/4.4;border-radius:12px;background:var(--surface);overflow:hidden;text-align:start;display:block;width:100%}
+.cal .d.out{background:transparent}
+.cal .d .n{position:absolute;top:4px;inset-inline-start:6px;font-size:11px;z-index:2;color:var(--muted)}
+.cal .d.today{box-shadow:inset 0 0 0 2px var(--fg)}
+.cal .d.today .n{color:var(--fg)}
+.cal .d .board{position:absolute;inset:14px 2px 2px;width:auto;aspect-ratio:auto;border-radius:8px;background:transparent}
+.cal .d .board img{filter:none}
+.cal .d .ok{position:absolute;bottom:3px;inset-inline-end:4px;font-size:10px;color:var(--ok);z-index:2}
+.todaycard{display:flex;gap:14px;align-items:center;background:var(--surface);border-radius:22px;padding:12px;box-shadow:var(--shadow);margin-top:16px}
+.todaycard .board{width:96px;flex:none;border-radius:14px;background:var(--tile)}
+.todaycard .tx{flex:1}
+.todaycard h4{font-size:16px;margin-bottom:4px}
+
+/* trips */
+.trip{display:block;width:100%;text-align:start;background:var(--surface);border-radius:20px;padding:14px 16px;box-shadow:var(--shadow);margin-bottom:10px}
+.trip h4{font-size:17px}
+.trip .sm{font-size:13px;color:var(--muted);margin-top:2px}
+.bar{height:6px;border-radius:3px;background:var(--chip);overflow:hidden;margin-top:10px}
+.bar i{display:block;height:100%;background:var(--ok);border-radius:3px}
+.pack{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);width:100%;text-align:start}
+.pack .im{width:46px;height:46px;border-radius:12px;background:var(--tile);display:grid;place-items:center;flex:none}
+.pack .im img{width:38px;height:38px;object-fit:contain}
+.pack .nm{flex:1;font-size:14px}
+.pack .ck{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;color:#fff;font-size:14px}
+.pack.done .ck{background:var(--ok);border-color:var(--ok)}
+.pack.done .nm{color:var(--muted);text-decoration:line-through}
+.dayrow{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+.dayrow .dc{background:var(--surface);border-radius:16px;padding:6px;position:relative}
+.dayrow .dc .cap{font-size:12px;color:var(--muted);padding:6px 4px 2px;display:flex;justify-content:space-between;align-items:center}
+
+/* stats */
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}
+.card{background:var(--surface);border-radius:20px;padding:14px 16px;box-shadow:var(--shadow)}
+.card b{display:block;font-size:24px;font-weight:500;letter-spacing:-.3px}
+.card span{font-size:12px;color:var(--muted)}
+.panel{background:var(--surface);border-radius:20px;padding:16px;box-shadow:var(--shadow);margin-bottom:12px}
+.panel h4{font-size:15px;margin-bottom:12px}
+.hbar{display:flex;align-items:center;gap:10px;margin-bottom:9px;font-size:13px}
+.hbar .l{width:78px;flex:none;color:var(--muted)}
+.hbar .t{flex:1;height:10px;border-radius:5px;background:var(--chip);overflow:hidden}
+.hbar .t i{display:block;height:100%;border-radius:5px;background:var(--fg)}
+.hbar .v{width:30px;text-align:end;flex:none}
+.stack{display:flex;height:22px;border-radius:11px;overflow:hidden;margin-bottom:12px;box-shadow:inset 0 0 0 1px var(--line)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-inline-end:5px;vertical-align:-1px;box-shadow:0 0 0 1px var(--line)}
+.hlist{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:0 16px}
+.hlist::-webkit-scrollbar{display:none}
+.hlist .h{flex:none;width:86px;text-align:center;font-size:12px;color:var(--muted)}
+.hlist .h .im{width:86px;height:100px;border-radius:14px;background:var(--tile);display:grid;place-items:center;margin-bottom:5px}
+.hlist .h img{width:68px;height:80px;object-fit:contain}
+
+/* builder */
+.screen{position:fixed;inset:0;z-index:40;background:var(--bg);display:flex;flex-direction:column;padding-top:var(--safe-t);
+  transform:translateY(100%);transition:transform .32s cubic-bezier(.2,.8,.2,1);visibility:hidden}
+.screen.on{transform:none;visibility:visible}
+.screen .bar2{display:flex;align-items:center;justify-content:space-between;padding:10px 16px}
+.screen .bar2 h3{font-size:17px}
+.screen .bar2 .btn{padding:9px 16px;font-size:14px}
+.bstage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:4px 16px}
+.bboard{position:relative;height:100%;max-height:100%;aspect-ratio:3/4;max-width:100%;background:var(--board);border-radius:22px;overflow:hidden;
+  touch-action:none;box-shadow:var(--shadow)}
+.bboard .it{position:absolute;touch-action:none}
+.bboard .it img{width:100%;display:block;pointer-events:none;user-select:none;-webkit-user-select:none;filter:drop-shadow(0 6px 10px rgba(0,0,0,.14))}
+.bboard .it img.nocut{border-radius:8%;filter:none}
+.bboard .it.sel{outline:1.5px dashed var(--hi);outline-offset:3px}
+.bboard .hint2{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:var(--muted);font-size:14px;padding:30px;pointer-events:none}
+.btools{display:flex;justify-content:center;gap:8px;padding:10px 16px 4px;min-height:52px}
+.btools button{width:42px;height:42px;border-radius:50%;background:var(--surface);display:grid;place-items:center;box-shadow:var(--shadow)}
+.btools button svg{width:19px;height:19px}
+.tray{background:var(--surface);border-radius:24px 24px 0 0;padding:12px 0 calc(12px + var(--safe-b));box-shadow:0 -8px 24px -18px rgba(0,0,0,.4)}
+.tray .chips{margin:0;padding:0 16px 10px}
+.tray .row2{display:flex;gap:8px;overflow-x:auto;padding:0 16px;scrollbar-width:none}
+.tray .row2::-webkit-scrollbar{display:none}
+.tray .ti{flex:none;width:72px;height:84px;border-radius:14px;background:var(--tile);display:grid;place-items:center;position:relative}
+.tray .ti img{width:58px;height:68px;object-fit:contain}
+.tray .ti.in::after{content:'✓';position:absolute;top:4px;inset-inline-end:4px;width:20px;height:20px;border-radius:50%;background:var(--hi);color:#fff;
+  font-size:12px;display:grid;place-items:center}
+
+.toast{position:fixed;left:50%;top:calc(12px + var(--safe-t));transform:translate(-50%,-160%);z-index:60;background:var(--accent);color:var(--on-accent);
+  padding:10px 18px;border-radius:999px;font-size:14px;transition:transform .3s;white-space:nowrap;box-shadow:var(--shadow)}
 .toast.on{transform:translate(-50%,0)}
-.hint{font-size:13px;color:var(--muted);line-height:1.7}
-.install{background:linear-gradient(135deg,rgba(139,108,255,.18),rgba(255,122,182,.14));border:1px solid var(--line);border-radius:18px;
-  padding:14px;margin-bottom:14px;font-size:14px;line-height:1.8}
-.install b{color:var(--gold);font-weight:500}
+.busy{position:fixed;inset:0;z-index:70;background:rgba(10,8,6,.5);display:grid;place-items:center}
+.busy .bx{background:var(--surface);border-radius:22px;padding:22px 26px;text-align:center;min-width:220px}
+.spin{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--fg);animation:sp 1s linear infinite;margin:0 auto 12px}
+@keyframes sp{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
 
 <header class="top">
-  <div>
-    <h1 id="title">خزانتي</h1>
-    <div class="sub" id="subtitle">كل ملابسك بمكان واحد</div>
-  </div>
+  <div class="tt"><h1 id="title">خزانتي</h1><div class="sub" id="subtitle"></div></div>
   <button class="iconbtn" id="settingsBtn" aria-label="الإعدادات">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
   </button>
 </header>
 
 <main>
-  <!-- WARDROBE -->
-  <section class="view" id="v-closet">
-    <div id="installTip" class="install hidden">
-      📲 عشان يصير تطبيق على الشاشة الرئيسية: اضغط زر <b>المشاركة</b> تحت في سفاري ثم <b>«إضافة إلى الشاشة الرئيسية»</b>.
-    </div>
-    <div class="stats" id="stats"></div>
-    <div class="chips" id="catFilter"></div>
-    <div class="grid" id="grid"></div>
-    <div class="empty hidden" id="closetEmpty">
-      <div class="big">👕</div>
-      <h3>خزانتك فاضية</h3>
-      <p class="hint">صوّر قطعة قطعة على خلفية سادة (سرير، أرضية، جدار) عشان يعرف لونها صح.</p>
-      <button class="btn primary" style="margin-top:12px" onclick="pickPhotos()">صوّر أول قطعة</button>
-    </div>
-  </section>
-
-  <!-- STYLIST -->
-  <section class="view hidden" id="v-style">
-    <div class="ctrl">
-      <div class="lbl">وين رايح؟</div>
-      <div class="chips" id="occPick" style="padding-bottom:4px"></div>
-      <div class="lbl" style="margin-top:8px">الجو</div>
-      <div class="seg" id="wxPick"></div>
-      <div class="weather" id="wxAuto"></div>
-    </div>
-    <div id="outfitBox"></div>
-  </section>
-
-  <!-- SAVED -->
-  <section class="view hidden" id="v-saved">
-    <div class="chips" id="savedTabs"></div>
-    <div class="saved" id="savedGrid"></div>
-    <div class="empty hidden" id="savedEmpty">
-      <div class="big">✨</div>
-      <h3>ما حفظت أوتفت للحين</h3>
-      <p class="hint">من صفحة «نسّقلي» اضغط ♡ على أي أوتفت عجبك.</p>
-    </div>
-  </section>
+  <section class="view" id="v-closet"></section>
+  <section class="view hidden" id="v-outfits"></section>
+  <section class="view hidden" id="v-plan"></section>
+  <section class="view hidden" id="v-stats"></section>
 </main>
 
 <nav class="tabs">
-  <button class="t on" data-v="closet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4a2 2 0 1 1 2 2c-1 0-2 .7-2 2v1"/><path d="M12 9 3 15.5c-.9.6-.4 2 .7 2h16.6c1.1 0 1.6-1.4.7-2L12 9z"/></svg>خزانتي</button>
-  <button class="t" data-v="style"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.6L18.5 9l-4.7 1.6L12 15l-1.8-4.4L5.5 9l4.7-1.4z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>نسّقلي</button>
-  <button class="add" id="addBtn" aria-label="أضف قطعة"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button>
-  <button class="t" data-v="saved"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 5.6a5.5 5.5 0 0 0-7.8 0L12 6.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 22l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></svg>المحفوظة</button>
-  <button class="t" id="todayTab" data-v="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>لبستها</button>
+  <button class="t on" data-v="closet"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.5a2 2 0 1 1 2 2c-1 0-2 .7-2 2v.8"/><path d="M12 9.3 3.2 15.6c-.8.6-.4 1.9.6 1.9h16.4c1 0 1.4-1.3.6-1.9L12 9.3z"/></svg>الخزانة</button>
+  <button class="t" data-v="outfits"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.6L18.5 9l-4.7 1.6L12 15l-1.8-4.4L5.5 9l4.7-1.4z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>أوتفتات</button>
+  <button class="add" id="addBtn" aria-label="أضف قطعة"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.4"/></svg></button>
+  <button class="t" data-v="plan"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>التقويم</button>
+  <button class="t" data-v="stats"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>إحصائيات</button>
 </nav>
+
+<!-- outfit builder -->
+<div class="screen" id="builder">
+  <div class="bar2">
+    <button class="btn ghost" id="bCancel">إلغاء</button>
+    <h3 id="bTitle">سوّ أوتفت</h3>
+    <button class="btn primary" id="bSave">حفظ</button>
+  </div>
+  <div class="bstage"><div class="bboard" id="bBoard"></div></div>
+  <div class="btools" id="bTools"></div>
+  <div class="tray">
+    <div class="chips" id="bCats"></div>
+    <div class="row2" id="bTray"></div>
+  </div>
+</div>
 
 <input type="file" id="fileIn" accept="image/*" multiple class="hidden">
 <input type="file" id="importIn" accept="application/json,.json" class="hidden">
-
 <div class="scrim" id="scrim"></div>
 <div class="sheet" id="sheet"><div class="grab"></div><div id="sheetBody"></div></div>
 <div class="toast" id="toast"></div>
+<div class="busy hidden" id="busy"><div class="bx"><div class="spin"></div><div id="busyTx">لحظة…</div></div></div>
 
-<script>
-'use strict';
-/* =========================================================
-   خزانتي — wardrobe + outfit stylist. 100% on-device:
-   photos and data are stored in IndexedDB, nothing is uploaded.
-   ========================================================= */
-
-const CATS = [
-  {id:'top',    ar:'فوق',      long:'قطعة علوية (تيشيرت، قميص، بلوزة)', e:'👕'},
-  {id:'bottom', ar:'تحت',      long:'قطعة سفلية (بنطلون، جينز، تنورة)', e:'👖'},
-  {id:'full',   ar:'قطعة كاملة', long:'قطعة كاملة (فستان، ثوب، عباية، جمبسوت)', e:'👗'},
-  {id:'outer',  ar:'جاكيت',    long:'طبقة خارجية (جاكيت، كارديغان، بشت)', e:'🧥'},
-  {id:'shoes',  ar:'حذاء',     long:'حذاء', e:'👟'},
-  {id:'bag',    ar:'شنطة',     long:'شنطة', e:'👜'},
-  {id:'acc',    ar:'إكسسوار',  long:'إكسسوار (ساعة، نظارة، شماغ، طرحة، حزام)', e:'⌚'},
-];
-const CAT = Object.fromEntries(CATS.map(c=>[c.id,c]));
-const OCCS = [
-  {id:'casual', ar:'كاجوال', e:'☕'},
-  {id:'work',   ar:'دوام/جامعة', e:'💼'},
-  {id:'out',    ar:'طلعة/عشاء', e:'🌙'},
-  {id:'event',  ar:'مناسبة', e:'🎉'},
-  {id:'sport',  ar:'رياضة', e:'🏃'},
-];
-const WX = [ {id:'hot',ar:'حر',e:'☀️'}, {id:'mild',ar:'معتدل',e:'⛅'}, {id:'cold',ar:'برد',e:'❄️'} ];
-const SEASONS = [ {id:'summer',ar:'صيفي'}, {id:'winter',ar:'شتوي'}, {id:'all',ar:'كل الفصول'} ];
-
-// Named palette. n = neutral (goes with almost everything)
-const PALETTE = [
-  ['#111111','أسود',1],['#F5F5F2','أبيض',1],['#8A8A8A','رمادي',1],['#3A3A3F','فحمي',1],
-  ['#F1E6D2','كريمي',1],['#D6C3A3','بيج',1],['#B49A74','خاكي',1],['#6B4A33','بني',1],['#9C6B3F','جملي',1],
-  ['#1E2A4A','كحلي',1],['#4A6A8F','جينز',1],['#9CB6D4','سماوي',0],['#2F5BD3','أزرق',0],
-  ['#1F7A6B','زيتي مخضر',0],['#556B2F','زيتي',1],['#3E8E4E','أخضر',0],['#A8C99A','نعناعي',0],
-  ['#E8D44D','أصفر',0],['#E9A23B','خردلي',0],['#E8742E','برتقالي',0],
-  ['#C0392B','أحمر',0],['#7A1F2B','عنابي',0],['#E8A0B4','وردي',0],['#D94C8A','فوشي',0],
-  ['#C9B6E4','ليلكي',0],['#6B3FA0','بنفسجي',0],['#C8A27A','ذهبي',0],['#C0C0C8','فضي',1],
-];
-
-/* ---------- storage (IndexedDB) ---------- */
-const DB = (() => {
-  let dbp;
-  function open(){
-    if (dbp) return dbp;
-    dbp = new Promise((res,rej)=>{
-      const r = indexedDB.open('khzanti',1);
-      r.onupgradeneeded = () => {
-        const d = r.result;
-        d.createObjectStore('items',{keyPath:'id'});
-        d.createObjectStore('outfits',{keyPath:'id'});
-        d.createObjectStore('kv');
-      };
-      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
-    });
-    return dbp;
-  }
-  async function tx(store, mode, fn){
-    const d = await open();
-    return new Promise((res,rej)=>{
-      const t = d.transaction(store, mode), s = t.objectStore(store);
-      const out = fn(s);
-      t.oncomplete = () => res(out && out.result !== undefined ? out.result : out);
-      t.onerror = () => rej(t.error);
-    });
-  }
-  return {
-    all: s => tx(s,'readonly',st=>st.getAll()),
-    put: (s,v,k) => tx(s,'readwrite',st=>k===undefined?st.put(v):st.put(v,k)),
-    del: (s,k) => tx(s,'readwrite',st=>st.delete(k)),
-    get: (s,k) => tx(s,'readonly',st=>st.get(k)),
-    clear: s => tx(s,'readwrite',st=>st.clear()),
-  };
-})();
-
-const S = { items:[], outfits:[], view:'closet', cat:'all', occ:'casual', wx:'mild', results:[], idx:0, locks:{}, savedTab:'fav' };
-
-/* ---------- helpers ---------- */
-const $ = id => document.getElementById(id);
-const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
-const esc = s => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('on'); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('on'),2000); }
-const byId = id => S.items.find(i=>i.id===id);
-const daysAgo = ts => ts ? Math.floor((Date.now()-ts)/864e5) : Infinity;
-
-/* ---------- color science ---------- */
-function hexToRgb(h){ h=h.replace('#',''); return [0,2,4].map(i=>parseInt(h.substr(i,2),16)); }
-function rgbToHex(r,g,b){ return '#'+[r,g,b].map(v=>Math.round(v).toString(16).padStart(2,'0')).join(''); }
-function rgbToHsl(r,g,b){ r/=255;g/=255;b/=255; const mx=Math.max(r,g,b),mn=Math.min(r,g,b); let h=0,s=0; const l=(mx+mn)/2;
-  if(mx!==mn){ const d=mx-mn; s=l>.5?d/(2-mx-mn):d/(mx+mn);
-    h = mx===r?((g-b)/d+(g<b?6:0)) : mx===g?((b-r)/d+2) : ((r-g)/d+4); h*=60; }
-  return [h,s,l]; }
-function rgbToLab(r,g,b){
-  const f=v=>{v/=255;return v>.04045?Math.pow((v+.055)/1.055,2.4):v/12.92}; r=f(r);g=f(g);b=f(b);
-  let x=(r*.4124+g*.3576+b*.1805)/.95047, y=r*.2126+g*.7152+b*.0722, z=(r*.0193+g*.1192+b*.9505)/1.08883;
-  const k=v=>v>.008856?Math.cbrt(v):7.787*v+16/116; x=k(x);y=k(y);z=k(z);
-  return [116*y-16,500*(x-y),200*(y-z)]; }
-const labDist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
-const PAL_LAB = PALETTE.map(p=>({hex:p[0],name:p[1],neutral:!!p[2],lab:rgbToLab(...hexToRgb(p[0]))}));
-function nameColor(hex){
-  const lab=rgbToLab(...hexToRgb(hex)); let best=PAL_LAB[0],bd=1e9;
-  for(const p of PAL_LAB){ const d=labDist(lab,p.lab); if(d<bd){bd=d;best=p;} }
-  return best;
-}
-function colorInfo(hex){
-  const [h,s,l]=rgbToHsl(...hexToRgb(hex)); const p=nameColor(hex);
-  const neutral = p.neutral || s<.14 || l<.13 || l>.92;
-  return {hex,h,s,l,name:p.name,neutral};
-}
-
-// Detect dominant garment color: estimate background from the border, ignore pixels near it,
-// then take the most common color bucket from the center area.
-function detectColor(img){
-  const N=72, c=document.createElement('canvas'); c.width=c.height=N; const x=c.getContext('2d',{willReadFrequently:true});
-  x.drawImage(img,0,0,N,N); const d=x.getImageData(0,0,N,N).data;
-  const px=(i,j)=>{const o=(j*N+i)*4;return [d[o],d[o+1],d[o+2]]};
-  let br=[0,0,0],bn=0;
-  for(let i=0;i<N;i++) for(const j of [0,1,N-2,N-1]){ const p=px(i,j),q=px(j,i); br[0]+=p[0]+q[0];br[1]+=p[1]+q[1];br[2]+=p[2]+q[2];bn+=2; }
-  const bg=rgbToLab(br[0]/bn,br[1]/bn,br[2]/bn);
-  const buckets=new Map();
-  const m=Math.floor(N*.18);
-  for(let j=m;j<N-m;j++) for(let i=m;i<N-m;i++){
-    const p=px(i,j), lab=rgbToLab(...p); if(labDist(lab,bg)<16) continue;
-    // weight the center more
-    const w=1.5-Math.hypot(i-N/2,j-N/2)/(N/2);
-    const k=(p[0]>>5)+','+(p[1]>>5)+','+(p[2]>>5);
-    const b=buckets.get(k)||{n:0,r:0,g:0,b:0}; b.n+=w;b.r+=p[0]*w;b.g+=p[1]*w;b.b+=p[2]*w; buckets.set(k,b);
-  }
-  let best=null; for(const b of buckets.values()) if(!best||b.n>best.n) best=b;
-  if(!best){ const p=px(N>>1,N>>1); return rgbToHex(...p); }
-  return rgbToHex(best.r/best.n,best.g/best.n,best.b/best.n);
-}
-
-// Pair harmony: returns {score, kind}
-function harmony(a,b){
-  if(a.neutral && b.neutral){
-    const both = a.name===b.name && Math.abs(a.l-b.l)<.08;
-    return {s: both?1:2, k:'neutral'};
-  }
-  if(a.neutral || b.neutral) return {s:2.2,k:'neutral'};
-  let d=Math.abs(a.h-b.h); if(d>180) d=360-d;
-  const dl=Math.abs(a.l-b.l);
-  if(d<18) return {s: dl>.15?2.4:1.4, k:'mono'};
-  if(d<50) return {s:1.6,k:'analog'};
-  if(d>=150) return {s: (a.s>.6&&b.s>.6&&dl<.12)?.6:1.8, k:'comp'};   // two loud complements = too much
-  if(d>=105 && d<=135) return {s:.6,k:'triad'};
-  return {s:-1.6,k:'clash'};
-}
-
-/* ---------- image intake ---------- */
-function loadImage(file){
-  return new Promise((res,rej)=>{ const u=URL.createObjectURL(file), im=new Image();
-    im.onload=()=>{res(im);}; im.onerror=rej; im.src=u; });
-}
-function shrink(img,max=900){
-  const k=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight));
-  const c=document.createElement('canvas'); c.width=Math.round(img.naturalWidth*k); c.height=Math.round(img.naturalHeight*k);
-  const x=c.getContext('2d'); x.fillStyle='#fff'; x.fillRect(0,0,c.width,c.height); x.drawImage(img,0,0,c.width,c.height);
-  return c.toDataURL('image/jpeg',.82);
-}
-function guessCat(img){ const r=img.naturalHeight/img.naturalWidth; return r>1.55?'full':r<.75?'shoes':'top'; }
-
-function pickPhotos(){ $('fileIn').value=''; $('fileIn').click(); }
-$('fileIn').addEventListener('change', async e=>{
-  const files=[...e.target.files]; if(!files.length) return;
-  const drafts=[];
-  for(const f of files){
-    try{ const im=await loadImage(f); const hex=detectColor(im);
-      drafts.push({id:uid(),img:shrink(im),cat:S.cat!=='all'&&CAT[S.cat]?S.cat:guessCat(im),color:hex,
-        seasons:['all'],occs:[],fav:false,wears:0,lastWorn:0,added:Date.now()});
-      URL.revokeObjectURL(im.src);
-    }catch(err){ console.warn(err); }
-  }
-  if(drafts.length) editItem(drafts,0,true);
-});
-
-/* ---------- item editor sheet ---------- */
-function openSheet(html){ $('sheetBody').innerHTML=html; $('scrim').classList.add('on'); $('sheet').classList.add('on'); $('sheet').scrollTop=0; }
-function closeSheet(){ $('scrim').classList.remove('on'); $('sheet').classList.remove('on'); }
-$('scrim').onclick=closeSheet;
-
-function editItem(list,i,isNew){
-  const it=list[i]; const ci=colorInfo(it.color);
-  const occSel=new Set(it.occs), seaSel=new Set(it.seasons);
-  openSheet(`
-    <h2>${isNew?'قطعة جديدة':'تعديل القطعة'}</h2>
-    <div class="preview"><img src="${it.img}" alt="">${list.length>1?`<span class="count">${i+1} / ${list.length}</span>`:''}</div>
-    <div class="field"><label>وش نوعها؟</label><div class="wrapchips" id="eCat">
-      ${CATS.map(c=>`<button class="chip ${c.id===it.cat?'on':''}" data-v="${c.id}">${c.e} ${c.ar}</button>`).join('')}</div></div>
-    <div class="field"><label>اللون <span class="colorname" id="eCName">— ${esc(ci.name)} ${it.color===it._auto?'':''}</span></label>
-      <div class="swatches" id="eCol">
-        <button class="sw on" data-v="${it.color}" style="background:${it.color}" title="اللون المكتشف"></button>
-        ${PALETTE.map(p=>`<button class="sw" data-v="${p[0]}" style="background:${p[0]}" title="${p[1]}"></button>`).join('')}
-      </div>
-      <div class="hint" style="margin-top:8px">أول دائرة هي اللون اللي اكتشفه التطبيق — غيّره إذا مو مضبوط.</div></div>
-    <div class="field"><label>تنفع لـ (اختياري — إذا ما اخترت تنفع لكل شي)</label><div class="wrapchips" id="eOcc">
-      ${OCCS.map(o=>`<button class="chip ${occSel.has(o.id)?'on':''}" data-v="${o.id}">${o.e} ${o.ar}</button>`).join('')}</div></div>
-    <div class="field"><label>الموسم</label><div class="seg" id="eSea">
-      ${SEASONS.map(s=>`<button class="${seaSel.has(s.id)?'on':''}" data-v="${s.id}">${s.ar}</button>`).join('')}</div></div>
-    <div class="row" style="margin-top:6px">
-      ${isNew&&list.length>1?`<button class="btn ghost" id="eSkip">تخطي</button>`:''}
-      ${!isNew?`<button class="btn danger" id="eDel">حذف</button>`:''}
-      <button class="btn primary" id="eSave">${isNew&&i<list.length-1?'حفظ والتالي':'حفظ'}</button>
-    </div>
-    ${!isNew?`<div class="hint" style="margin-top:14px;text-align:center">انلبست ${it.wears||0} مرة${it.lastWorn?` · آخر مرة قبل ${daysAgo(it.lastWorn)} يوم`:''}
-      · <button id="eFav" style="color:var(--gold)">${it.fav?'★ مفضلة':'☆ أضف للمفضلة'}</button></div>`:''}
-  `);
-  const single=(box,key)=>$(box).onclick=e=>{const b=e.target.closest('[data-v]'); if(!b)return;
-    $(box).querySelectorAll('[data-v]').forEach(x=>x.classList.toggle('on',x===b)); it[key]=b.dataset.v;
-    if(key==='color') $('eCName').textContent='— '+colorInfo(it.color).name; };
-  single('eCat','cat'); single('eCol','color');
-  $('eOcc').onclick=e=>{const b=e.target.closest('[data-v]'); if(!b)return; b.classList.toggle('on');
-    it.occs=[...$('eOcc').querySelectorAll('.on')].map(x=>x.dataset.v); };
-  $('eSea').onclick=e=>{const b=e.target.closest('[data-v]'); if(!b)return;
-    $('eSea').querySelectorAll('[data-v]').forEach(x=>x.classList.toggle('on',x===b)); it.seasons=[b.dataset.v]; };
-  const next=()=>{ if(isNew&&i<list.length-1) editItem(list,i+1,true); else closeSheet(); };
-  $('eSave').onclick=async()=>{ await DB.put('items',it); const k=S.items.findIndex(x=>x.id===it.id);
-    if(k<0) S.items.push(it); else S.items[k]=it; S.results=[]; renderCloset(); toast('انحفظت ✓'); next(); };
-  if($('eSkip')) $('eSkip').onclick=next;
-  if($('eDel')) $('eDel').onclick=async()=>{ if(!confirm('أكيد تبي تحذف القطعة؟')) return;
-    await DB.del('items',it.id); S.items=S.items.filter(x=>x.id!==it.id); S.results=[]; renderCloset(); closeSheet(); toast('انحذفت'); };
-  if($('eFav')) $('eFav').onclick=async()=>{ it.fav=!it.fav; await DB.put('items',it); editItem(list,i,false); renderCloset(); };
-}
-
-/* ---------- closet view ---------- */
-function renderCloset(){
-  const items=S.items;
-  $('closetEmpty').classList.toggle('hidden',items.length>0);
-  $('stats').classList.toggle('hidden',items.length===0);
-  $('catFilter').classList.toggle('hidden',items.length===0);
-  const count=c=>items.filter(i=>i.cat===c).length;
-  const tops=count('top'),bots=count('bottom'),full=count('full');
-  $('stats').innerHTML=`<div class="stat"><b>${items.length}</b><span>قطعة</span></div>
-    <div class="stat"><b>${tops*bots+full}</b><span>تركيبة أساسية ممكنة</span></div>
-    <div class="stat"><b>${S.outfits.filter(o=>o.fav).length}</b><span>أوتفت محفوظ</span></div>`;
-  $('catFilter').innerHTML=`<button class="chip ${S.cat==='all'?'on':''}" data-v="all">الكل<span class="n">${items.length}</span></button>`+
-    CATS.map(c=>`<button class="chip ${S.cat===c.id?'on':''}" data-v="${c.id}">${c.e} ${c.ar}<span class="n">${count(c.id)}</span></button>`).join('');
-  const list=items.filter(i=>S.cat==='all'||i.cat===S.cat).sort((a,b)=>b.added-a.added);
-  $('grid').innerHTML=list.map(i=>`<button class="tile" data-id="${i.id}"><img src="${i.img}" alt="" loading="lazy">
-    <span class="dot" style="background:${i.color}"></span>${i.fav?'<span class="fav">★</span>':''}</button>`).join('');
-}
-$('catFilter').onclick=e=>{const b=e.target.closest('[data-v]'); if(!b)return; S.cat=b.dataset.v; renderCloset();};
-$('grid').onclick=e=>{const b=e.target.closest('[data-id]'); if(!b)return; const it=byId(b.dataset.id); editItem([{...it,occs:[...it.occs],seasons:[...it.seasons]}],0,false);};
-
-/* ---------- stylist engine ---------- */
-function fits(it,occ,wx){
-  if(it.occs.length && !it.occs.includes(occ)) return false;
-  const sea=it.seasons[0]||'all';
-  if(wx==='hot' && sea==='winter') return false;
-  if(wx==='cold' && sea==='summer' && (it.cat==='outer'||it.cat==='shoes')) return false;
-  return true;
-}
-const pick=a=>a[Math.floor(Math.random()*a.length)];
-
-function scoreOutfit(pieces,occ,wx){
-  const core=pieces.filter(p=>['top','bottom','full','outer','shoes'].includes(p.cat));
-  const cols=core.map(p=>colorInfo(p.color)); let s=0; const kinds={};
-  for(let i=0;i<cols.length;i++) for(let j=i+1;j<cols.length;j++){
-    const h=harmony(cols[i],cols[j]); const w=(core[i].cat==='shoes'||core[j].cat==='shoes')?.6:1;
-    s+=h.s*w; kinds[h.k]=(kinds[h.k]||0)+1; }
-  const loud=new Set(cols.filter(c=>!c.neutral).map(c=>c.name));
-  if(loud.size>2) s-=2.5*(loud.size-2);
-  if(loud.size===0) s+= (new Set(cols.map(c=>Math.round(c.l*4))).size>1)?.5:-.8; // all-neutral needs contrast
-  // top vs bottom contrast
-  const t=pieces.find(p=>p.cat==='top'), b=pieces.find(p=>p.cat==='bottom');
-  if(t&&b){ const ct=colorInfo(t.color), cb=colorInfo(b.color); if(Math.abs(ct.l-cb.l)<.06 && ct.name!==cb.name) s-=1; }
-  for(const p of pieces){
-    if(p.fav) s+=.4;
-    const d=daysAgo(p.lastWorn); if(d<3) s-=1.6; else if(d<7) s-=.6;
-    if(p.occs.includes(occ)) s+=.5;
-    const sea=p.seasons[0]; if((wx==='cold'&&sea==='winter')||(wx==='hot'&&sea==='summer')) s+=.3;
-  }
-  // don't repeat an outfit you already wore lately
-  const key=pieces.map(p=>p.id).sort().join('|');
-  if(S.outfits.some(o=>o.worn&&o.key===key&&daysAgo(o.date)<10)) s-=3;
-  return {s:s+Math.random()*.8, kinds, loud:[...loud]};
-}
-
-function explain(r,pieces){
-  const k=r.kinds, parts=[];
-  if(r.loud.length===0) parts.push('ألوان محايدة هادية — صعب تغلط فيها');
-  else if(r.loud.length===1) parts.push(`لون واحد بارز (${r.loud[0]}) والباقي محايد يبرزه`);
-  if(k.mono) parts.push('تدرّج من نفس اللون يعطي مظهر مرتب وطويل');
-  if(k.analog) parts.push('ألوان متجاورة على عجلة الألوان، متناسقة وناعمة');
-  if(k.comp) parts.push('ألوان متكاملة تعطي تباين حلو');
-  if(k.clash) parts.push('فيه لونين ممكن يتعاركون شوي — جرّبه إذا تحب الجرأة');
-  const outer=pieces.find(p=>p.cat==='outer'); if(outer) parts.push('أضفت طبقة خارجية عشان الجو');
-  const fresh=pieces.filter(p=>!p.wears).length; if(fresh) parts.push(fresh===1?'فيه قطعة ما لبستها قبل!':`فيه ${fresh} قطع ما لبستها قبل!`);
-  return parts.slice(0,3).join('. ')+'.';
-}
-
-function generate(){
-  const {occ,wx}=S; const pool=c=>S.items.filter(i=>i.cat===c&&fits(i,occ,wx));
-  const P={top:pool('top'),bottom:pool('bottom'),full:pool('full'),outer:pool('outer'),shoes:pool('shoes'),bag:pool('bag'),acc:pool('acc')};
-  const locked=Object.fromEntries(Object.entries(S.locks).map(([c,id])=>[c,byId(id)]).filter(([,v])=>v));
-  const canSplit=(locked.top||P.top.length)&&(locked.bottom||P.bottom.length);
-  const canFull=locked.full||P.full.length;
-  if(!canSplit && !canFull) return null;
-  const seen=new Map();
-  for(let n=0;n<500;n++){
-    let useFull = locked.full ? true : (locked.top||locked.bottom) ? false
-      : canFull && (!canSplit || Math.random()<P.full.length/(P.full.length+Math.min(P.top.length,P.bottom.length)+1));
-    if(useFull && !canFull) useFull=false; if(!useFull && !canSplit) useFull=true;
-    const ps=[];
-    if(useFull) ps.push(locked.full||pick(P.full));
-    else { ps.push(locked.top||pick(P.top)); ps.push(locked.bottom||pick(P.bottom)); }
-    const wantOuter = locked.outer || (P.outer.length && (wx==='cold' || (wx==='mild'&&Math.random()<.4)));
-    if(wantOuter) ps.push(locked.outer||pick(P.outer));
-    if(locked.shoes||P.shoes.length) ps.push(locked.shoes||pick(P.shoes));
-    if(locked.bag||(P.bag.length&&Math.random()<.7)) ps.push(locked.bag||pick(P.bag));
-    if(locked.acc||(P.acc.length&&Math.random()<.6)) ps.push(locked.acc||pick(P.acc));
-    const key=ps.map(p=>p.id).sort().join('|'); if(seen.has(key)) continue;
-    const r=scoreOutfit(ps,occ,wx); seen.set(key,{pieces:ps,key,...r});
-  }
-  // keep the best, but make results different from each other
-  const sorted=[...seen.values()].sort((a,b)=>b.s-a.s), out=[];
-  for(const o of sorted){
-    if(out.length>=6) break;
-    if(out.some(x=>x.pieces.filter(p=>o.pieces.some(q=>q.id===p.id)&&p.cat!=='shoes').length>=2 && out.length<sorted.length/3)) continue;
-    out.push(o);
-  }
-  return out.length?out:sorted.slice(0,6);
-}
-
-const ORDER=['outer','top','full','bottom','shoes','bag','acc'];
-function renderStyle(){
-  $('occPick').innerHTML=OCCS.map(o=>`<button class="chip ${S.occ===o.id?'on':''}" data-v="${o.id}">${o.e} ${o.ar}</button>`).join('');
-  $('wxPick').innerHTML=WX.map(w=>`<button class="${S.wx===w.id?'on':''}" data-v="${w.id}">${w.e} ${w.ar}</button>`).join('');
-  const box=$('outfitBox');
-  const tops=S.items.filter(i=>i.cat==='top').length, bots=S.items.filter(i=>i.cat==='bottom').length, full=S.items.filter(i=>i.cat==='full').length;
-  if(!(tops&&bots)&&!full){
-    box.innerHTML=`<div class="empty"><div class="big">🪄</div><h3>أحتاج قطع أكثر</h3>
-      <p class="hint">صوّر على الأقل قطعة <b>فوق</b> وقطعة <b>تحت</b> (أو <b>قطعة كاملة</b> مثل فستان/ثوب)، ويفضل حذاء بعد.</p>
-      <button class="btn primary" style="margin-top:12px" onclick="pickPhotos()">صوّر قطعة</button></div>`; return;
-  }
-  if(!S.results.length){ S.results=generate()||[]; S.idx=0; }
-  const o=S.results[S.idx];
-  if(!o){ box.innerHTML=`<div class="empty"><div class="big">🤔</div><h3>ما لقيت تركيبة تناسب</h3>
-    <p class="hint">جرّب مناسبة أو جو ثاني، أو فك القفل عن بعض القطع.</p></div>`; return; }
-  const ps=[...o.pieces].sort((a,b)=>ORDER.indexOf(a.cat)-ORDER.indexOf(b.cat));
-  const main=ps.filter(p=>['outer','top','full','bottom'].includes(p.cat)), extra=ps.filter(p=>!main.includes(p));
-  const cell=(p,cls='')=>`<div class="piece ${cls}"><img src="${p.img}" alt="">
-    <span class="tag">${CAT[p.cat].ar} · ${esc(colorInfo(p.color).name)}</span>
-    <button class="lock ${S.locks[p.cat]===p.id?'on':''}" data-lock="${p.cat}" data-id="${p.id}" aria-label="ثبّت">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 ${S.locks[p.cat]===p.id?'8 0v4':'7.5-1.5'}"/></svg></button></div>`;
-  const isSaved=S.outfits.some(x=>x.key===o.key&&x.fav);
-  box.innerHTML=`<div class="outfit">
-      <div class="board">${main.map(p=>cell(p,main.length===1?'wide':'')).join('')}${extra.map(p=>cell(p,'small')).join('')}</div>
-      <div class="score"><div class="pal">${ps.map(p=>`<i style="background:${p.color}"></i>`).join('')}</div>
-        <span class="val">${'★'.repeat(Math.max(1,Math.min(5,Math.round(o.s/2.2))))}</span></div>
-      <p class="why">${explain(o,ps)}</p>
-      <div class="pager">${S.results.map((_,i)=>`<i class="${i===S.idx?'on':''}"></i>`).join('')}</div>
-      <div class="row">
-        <button class="btn ghost" id="favO" style="flex:none;width:56px">${isSaved?'♥':'♡'}</button>
-        <button class="btn" id="nextO">🔀 غيره</button>
-        <button class="btn primary" id="wearO">بلبسه اليوم</button>
-      </div>
-    </div>
-    <p class="hint" style="text-align:center">🔒 ثبّت أي قطعة وبنسّق الباقي عليها</p>`;
-}
-$('occPick').onclick=e=>{const b=e.target.closest('[data-v]'); if(!b)return; S.occ=b.dataset.v; S.results=[]; renderStyle();};
-$('wxPick').onclick=e=>{const b=e.target.closest('[data-v]'); if(!b)return; S.wx=b.dataset.v; S.results=[]; renderStyle();};
-$('outfitBox').onclick=async e=>{
-  const lock=e.target.closest('[data-lock]');
-  if(lock){ const c=lock.dataset.lock; if(S.locks[c]===lock.dataset.id) delete S.locks[c]; else S.locks[c]=lock.dataset.id;
-    if(c==='full'){delete S.locks.top;delete S.locks.bottom;} if(c==='top'||c==='bottom') delete S.locks.full;
-    renderStyle(); toast(S.locks[c]?'ثبتّها 🔒':'فكّيت القفل'); return; }
-  const o=S.results[S.idx]; if(!o) return;
-  if(e.target.closest('#nextO')){
-    if(S.idx<S.results.length-1) S.idx++; else { S.results=generate()||[]; S.idx=0; }
-    renderStyle(); return; }
-  if(e.target.closest('#favO')){
-    const ex=S.outfits.find(x=>x.key===o.key);
-    if(ex){ ex.fav=!ex.fav; await DB.put('outfits',ex); }
-    else { const rec={id:uid(),key:o.key,ids:o.pieces.map(p=>p.id),occ:S.occ,date:Date.now(),fav:true,worn:false}; S.outfits.push(rec); await DB.put('outfits',rec); }
-    renderStyle(); toast(S.outfits.find(x=>x.key===o.key).fav?'انحفظ بالمفضلة ♥':'انشال من المفضلة'); return; }
-  if(e.target.closest('#wearO')){
-    const now=Date.now();
-    for(const p of o.pieces){ p.wears=(p.wears||0)+1; p.lastWorn=now; await DB.put('items',p); }
-    const ex=S.outfits.find(x=>x.key===o.key);
-    const rec=ex&&!ex.worn ? Object.assign(ex,{worn:true,date:now})
-      : {id:uid(),key:o.key,ids:o.pieces.map(p=>p.id),occ:S.occ,date:now,fav:!!(ex&&ex.fav),worn:true};
-    if(!S.outfits.includes(rec)) S.outfits.push(rec); await DB.put('outfits',rec);
-    S.locks={}; S.results=[]; toast('تم ✓ تشكيلة حلوة! سجلتها بـ«لبستها»'); renderStyle(); }
-};
-
-/* auto weather guess from the month (Gulf climate) */
-function autoWx(){ const m=new Date().getMonth()+1; return [12,1,2].includes(m)?'cold':[3,4,10,11].includes(m)?'mild':'hot'; }
-
-/* ---------- saved / history ---------- */
-function renderSaved(){
-  const tabs=[{id:'fav',ar:'♥ المفضلة'},{id:'worn',ar:'📅 لبستها'}];
-  $('savedTabs').innerHTML=tabs.map(t=>`<button class="chip ${S.savedTab===t.id?'on':''}" data-v="${t.id}">${t.ar}</button>`).join('');
-  const list=S.outfits.filter(o=>S.savedTab==='fav'?o.fav:o.worn).sort((a,b)=>b.date-a.date)
-    .map(o=>({...o,pieces:o.ids.map(byId).filter(Boolean)})).filter(o=>o.pieces.length>=2);
-  $('savedEmpty').classList.toggle('hidden',list.length>0);
-  $('savedEmpty').querySelector('h3').textContent=S.savedTab==='fav'?'ما حفظت أوتفت للحين':'ما سجلت شي لبسته للحين';
-  $('savedGrid').innerHTML=list.map(o=>{
-    const ps=[...o.pieces].sort((a,b)=>ORDER.indexOf(a.cat)-ORDER.indexOf(b.cat)).slice(0,4);
-    const occ=OCCS.find(x=>x.id===o.occ);
-    return `<button class="scard" data-id="${o.id}"><div class="mini">${ps.map(p=>`<img src="${p.img}" alt="">`).join('')}</div>
-      <div class="meta"><span>${occ?occ.e+' '+occ.ar:''}</span><span>${new Date(o.date).toLocaleDateString('ar',{day:'numeric',month:'short'})}</span></div></button>`;
-  }).join('');
-}
-$('savedTabs').onclick=e=>{const b=e.target.closest('[data-v]'); if(!b)return; S.savedTab=b.dataset.v; markTab(); renderSaved();};
-$('savedGrid').onclick=e=>{const b=e.target.closest('[data-id]'); if(!b)return; const o=S.outfits.find(x=>x.id===b.dataset.id);
-  const ps=o.ids.map(byId).filter(Boolean).sort((a,b)=>ORDER.indexOf(a.cat)-ORDER.indexOf(b.cat));
-  openSheet(`<h2>أوتفت</h2><div class="board" style="margin-bottom:16px">${ps.map(p=>`<div class="piece"><img src="${p.img}" alt=""><span class="tag">${CAT[p.cat].ar}</span></div>`).join('')}</div>
-    <div class="row"><button class="btn danger" id="oDel">حذف</button><button class="btn primary" id="oWear">بلبسه مرة ثانية</button></div>`);
-  $('oDel').onclick=async()=>{ await DB.del('outfits',o.id); S.outfits=S.outfits.filter(x=>x!==o); closeSheet(); renderSaved(); };
-  $('oWear').onclick=()=>{ S.locks={}; ps.forEach(p=>S.locks[p.cat]=p.id); S.results=[]; closeSheet(); go('style'); };
-};
-
-/* ---------- settings / backup ---------- */
-$('settingsBtn').onclick=()=>{
-  openSheet(`<h2>الإعدادات</h2>
-    <p class="hint">كل صورك وبياناتك محفوظة <b>على جوالك بس</b> — ما ترفع لأي مكان. إذا مسحت بيانات سفاري أو حذفت التطبيق تروح، فخذ نسخة احتياطية كل فترة.</p>
-    <div style="display:grid;gap:10px;margin-top:16px">
-      <button class="btn" id="bExp">⬇️ تصدير نسخة احتياطية</button>
-      <button class="btn" id="bImp">⬆️ استرجاع نسخة احتياطية</button>
-      <button class="btn danger" id="bWipe">🗑️ مسح كل شي</button>
-    </div>
-    <p class="hint" style="margin-top:18px">💡 نصايح للتصوير: حط القطعة مفرودة على خلفية سادة، بإضاءة النهار، وصورها من فوق. كذا يعرف اللون صح والأوتفتات تطلع أحلى.</p>`);
-  $('bExp').onclick=async()=>{
-    const data=JSON.stringify({app:'khzanti',v:1,items:S.items,outfits:S.outfits});
-    const file=new File([data],`khzanti-backup-${new Date().toISOString().slice(0,10)}.json`,{type:'application/json'});
-    if(navigator.canShare&&navigator.canShare({files:[file]})){ try{ await navigator.share({files:[file],title:'نسخة خزانتي'}); return; }catch(e){ if(e.name==='AbortError') return; } }
-    const a=document.createElement('a'); a.href=URL.createObjectURL(file); a.download=file.name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),4000);
-  };
-  $('bImp').onclick=()=>{ $('importIn').value=''; $('importIn').click(); };
-  $('bWipe').onclick=async()=>{ if(!confirm('بتنمسح كل القطع والأوتفتات. متأكد؟')) return;
-    await DB.clear('items'); await DB.clear('outfits'); S.items=[]; S.outfits=[]; S.results=[]; S.locks={}; closeSheet(); render(); toast('انمسح كل شي'); };
-};
-$('importIn').addEventListener('change',async e=>{
-  const f=e.target.files[0]; if(!f) return;
-  try{ const d=JSON.parse(await f.text()); if(d.app!=='khzanti') throw 0;
-    for(const it of d.items||[]) await DB.put('items',it);
-    for(const o of d.outfits||[]) await DB.put('outfits',o);
-    await load(); closeSheet(); render(); toast(`رجعت ${d.items.length} قطعة ✓`);
-  }catch(err){ toast('الملف مو نسخة من خزانتي'); }
-});
-
-/* ---------- navigation ---------- */
-const TITLES={closet:['خزانتي','كل ملابسك بمكان واحد'],style:['نسّقلي','أوتفت مقترح لك اليوم'],saved:['المحفوظة','أوتفتاتك المفضلة واللي لبستها']};
-function go(v){
-  if(v==='today'){ S.savedTab='worn'; v='saved'; } else if(v==='saved' && S.view!=='saved') S.savedTab='fav';
-  S.view=v;
-  ['closet','style','saved'].forEach(x=>$('v-'+x).classList.toggle('hidden',x!==v));
-  markTab();
-  $('title').textContent=TITLES[v][0]; $('subtitle').textContent=TITLES[v][1];
-  render(); window.scrollTo(0,0);
-}
-document.querySelectorAll('nav .t').forEach(t=>t.onclick=()=>go(t.dataset.v));
-$('addBtn').onclick=pickPhotos;
-function markTab(){ const a=S.view==='saved'&&S.savedTab==='worn'?'today':S.view;
-  document.querySelectorAll('nav .t').forEach(t=>t.classList.toggle('on',t.dataset.v===a)); }
-function render(){ if(S.view==='closet') renderCloset(); else if(S.view==='style') renderStyle(); else renderSaved(); }
-
-async function load(){
-  S.items=(await DB.all('items')).map(i=>({seasons:['all'],occs:[],...i}));
-  S.outfits=await DB.all('outfits');
-}
-
-(async function init(){
-  S.wx=autoWx();
-  const isIOS=/iP(hone|ad|od)/.test(navigator.userAgent), standalone=navigator.standalone||matchMedia('(display-mode: standalone)').matches;
-  if(isIOS&&!standalone) $('installTip').classList.remove('hidden');
-  $('wxAuto').textContent='🌡️ اخترت الجو تلقائياً حسب الشهر — غيّره إذا تبي';
-  try{ await load(); }catch(e){ toast('ما قدرت أفتح التخزين'); }
-  if(navigator.storage&&navigator.storage.persist) navigator.storage.persist().catch(()=>{});
-  render();
-  if('serviceWorker' in navigator && location.protocol==='https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
-})();
-</script>
+<script src="app.js"></script>
 </body>
 </html>
