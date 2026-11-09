@@ -96,9 +96,9 @@ const now0 = new Date();
 const S = {
   items:[], outfits:[], plans:{}, trips:[], set:{cur:'ر.س', wxOn:false, tipClosed:false},
   view:'closet',
-  closet:{cat:'all', q:'', color:null, sort:'new', laundry:false},
+  closet:{cat:'all', q:'', color:null, sort:'new', laundry:false, tab:'items'}, hero:null,
   oTab:'style', occ:'casual', wx:null, wxManual:false, wxInfo:null, planDate:null,
-  results:[], idx:0, locks:{},
+  results:[], idx:0, locks:{}, look:'all', shown:new Set(),
   pTab:'cal', cal:{y:now0.getFullYear(), m:now0.getMonth()},
 };
 
@@ -162,70 +162,113 @@ function harmony(a,b){
 function loadImg(src){ return new Promise((res,rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=rej; im.src=src; }); }
 function mkCanvas(w,h){ const c=document.createElement('canvas'); c.width=w; c.height=h; return c; }
 
-// Flood-fills the background from the photo border (works best on a plain surface),
-// keeps the main garment, feathers the edge, and crops to the garment.
-function processPhoto(im){
-  const MAX=720, k=Math.min(1,MAX/Math.max(im.naturalWidth,im.naturalHeight));
-  const w=Math.max(8,Math.round(im.naturalWidth*k)), h=Math.max(8,Math.round(im.naturalHeight*k)), N=w*h;
-  const c=mkCanvas(w,h), x=c.getContext('2d',{willReadFrequently:true});
-  x.drawImage(im,0,0,w,h);
-  const orig=c.toDataURL('image/jpeg',.85);
-  const id=x.getImageData(0,0,w,h), d=id.data;
+/* Pipeline: source photo (canvas) → optional enhancement → alpha mask (AI or classic,
+   plus manual touch-ups) → composed cut-out. The source and mask are stored with the
+   item so every step can be redone later. */
+function srcFromImage(im,MAX=720){
+  const k=Math.min(1,MAX/Math.max(im.naturalWidth||im.width,im.naturalHeight||im.height));
+  const w=Math.max(8,Math.round((im.naturalWidth||im.width)*k)), h=Math.max(8,Math.round((im.naturalHeight||im.height)*k));
+  const c=mkCanvas(w,h), x=c.getContext('2d'); x.fillStyle='#fff'; x.fillRect(0,0,w,h); x.drawImage(im,0,0,w,h); return c;
+}
+const ctx2d = c => c.getContext('2d',{willReadFrequently:true});
+// auto levels + white balance from the photo itself, then brightness (gamma)
+function enhancedData(src,{auto=true,bright=0}={}){
+  const w=src.width,h=src.height, id=ctx2d(src).getImageData(0,0,w,h), d=id.data;
+  if(!auto&&!bright) return id;
+  const luts=[0,1,2].map(()=>new Uint8ClampedArray(256).map((_,v)=>v));
+  if(auto){
+    const hist=[new Uint32Array(256),new Uint32Array(256),new Uint32Array(256)]; let n=0;
+    const step=Math.max(1,Math.floor(Math.sqrt(w*h/40000)));
+    for(let y=0;y<h;y+=step) for(let x=0;x<w;x+=step){ const o=(y*w+x)*4; hist[0][d[o]]++; hist[1][d[o+1]]++; hist[2][d[o+2]]++; n++; }
+    const pct=(hh,p)=>{ let acc=0; for(let v=0;v<256;v++){ acc+=hh[v]; if(acc>=n*p) return v; } return 255; };
+    for(let c=0;c<3;c++){
+      const lo=Math.min(pct(hist[c],.005),45), hi=Math.max(pct(hist[c],.995),175);
+      for(let v=0;v<256;v++){ const st=(v-lo)/(hi-lo)*255; luts[c][v]=v*.35+clamp(st,0,255)*.65; }
+    }
+  }
+  if(bright){ const g=Math.pow(2,-bright*1.6); for(let c=0;c<3;c++) for(let v=0;v<256;v++) luts[c][v]=255*Math.pow(luts[c][v]/255,g); }
+  for(let i=0;i<d.length;i+=4){ d[i]=luts[0][d[i]]; d[i+1]=luts[1][d[i+1]]; d[i+2]=luts[2][d[i+2]]; }
+  return id;
+}
+// Classic: flood-fill the background from the border (plain backgrounds).
+function classicAlpha(src){
+  const w=src.width,h=src.height,N=w*h, d=ctx2d(src).getImageData(0,0,w,h).data;
   const L=new Float32Array(N),A=new Float32Array(N),B=new Float32Array(N);
   for(let i=0;i<N;i++){ const o=i*4, lab=rgbToLab(d[o],d[o+1],d[o+2]); L[i]=lab[0];A[i]=lab[1];B[i]=lab[2]; }
   const dist=(i,l,a,b)=>Math.hypot(L[i]-l,A[i]-a,B[i]-b);
-  // background estimate from the border band
   const band=Math.max(2,Math.round(Math.min(w,h)*.015)), border=[];
-  for(let y=0;y<h;y++) for(let xx=0;xx<w;xx++) if(xx<band||yy(y)||xx>=w-band) border.push(y*w+xx);
-  function yy(y){ return y<band||y>=h-band; }
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++) if(x<band||y<band||x>=w-band||y>=h-band) border.push(y*w+x);
   let bl=0,ba=0,bb=0; for(const i of border){bl+=L[i];ba+=A[i];bb+=B[i];} bl/=border.length;ba/=border.length;bb/=border.length;
   let spread=0; for(const i of border) spread+=dist(i,bl,ba,bb); spread/=border.length;
   const T1=clamp(9+spread*1.5,12,32), T2=5, T3=T1*2.3;
   const bg=new Uint8Array(N), q=new Int32Array(N); let qh=0,qt=0;
+  const nbs=i=>{ const px=i%w, py=(i/w)|0; return [px>0?i-1:-1, px<w-1?i+1:-1, py>0?i-w:-1, py<h-1?i+w:-1]; };
   for(const i of border) if(!bg[i]&&dist(i,bl,ba,bb)<T3){ bg[i]=1; q[qt++]=i; }
-  while(qh<qt){
-    const i=q[qh++], px=i%w, py=(i/w)|0;
-    const nb=[px>0?i-1:-1, px<w-1?i+1:-1, py>0?i-w:-1, py<h-1?i+w:-1];
-    for(const j of nb){ if(j<0||bg[j]) continue;
-      const dj=dist(j,bl,ba,bb);
-      if(dj<T1 || (dj<T3 && Math.hypot(L[j]-L[i],A[j]-A[i],B[j]-B[i])<T2)){ bg[j]=1; q[qt++]=j; } }
-  }
-  // enclosed background pockets (bag handles, straps) that the border fill can't reach
+  while(qh<qt){ const i=q[qh++];
+    for(const j of nbs(i)){ if(j<0||bg[j]) continue; const dj=dist(j,bl,ba,bb);
+      if(dj<T1||(dj<T3&&Math.hypot(L[j]-L[i],A[j]-A[i],B[j]-B[i])<T2)){ bg[j]=1; q[qt++]=j; } } }
+  // enclosed background pockets (bag handles, straps)
   { const hole=new Uint8Array(N), T=T1*.8;
     for(let s0=0;s0<N;s0++){ if(bg[s0]||hole[s0]||dist(s0,bl,ba,bb)>=T) continue;
       qh=qt=0; q[qt++]=s0; hole[s0]=1;
-      while(qh<qt){ const i=q[qh++], px=i%w, py=(i/w)|0;
-        const nb=[px>0?i-1:-1, px<w-1?i+1:-1, py>0?i-w:-1, py<h-1?i+w:-1];
-        for(const j of nb) if(j>=0&&!bg[j]&&!hole[j]&&dist(j,bl,ba,bb)<T){ hole[j]=1; q[qt++]=j; } }
+      while(qh<qt){ const i=q[qh++]; for(const j of nbs(i)) if(j>=0&&!bg[j]&&!hole[j]&&dist(j,bl,ba,bb)<T){ hole[j]=1; q[qt++]=j; } }
       if(qt>N*.004) for(let k=0;k<qt;k++) bg[q[k]]=1; } }
-  // keep only significant foreground components (removes specks and lint)
+  // drop specks: keep significant components only
   const lab=new Int32Array(N); let nl=0; const sizes=[0];
-  for(let s=0;s<N;s++){ if(bg[s]||lab[s]) continue; nl++; let n=0; qh=qt=0; q[qt++]=s; lab[s]=nl;
-    while(qh<qt){ const i=q[qh++]; n++; const px=i%w, py=(i/w)|0;
-      const nb=[px>0?i-1:-1, px<w-1?i+1:-1, py>0?i-w:-1, py<h-1?i+w:-1];
-      for(const j of nb) if(j>=0&&!bg[j]&&!lab[j]){ lab[j]=nl; q[qt++]=j; } }
+  for(let s0=0;s0<N;s0++){ if(bg[s0]||lab[s0]) continue; nl++; let n=0; qh=qt=0; q[qt++]=s0; lab[s0]=nl;
+    while(qh<qt){ const i=q[qh++]; n++; for(const j of nbs(i)) if(j>=0&&!bg[j]&&!lab[j]){ lab[j]=nl; q[qt++]=j; } }
     sizes.push(n); }
   const big=sizes.reduce((m,n)=>n>m?n:m,0), keep=sizes.map(n=>n>=Math.max(big*.12,N*.002));
   let fg=0; for(let i=0;i<N;i++){ if(!bg[i]&&!keep[lab[i]]) bg[i]=1; if(!bg[i]) fg++; }
-  const frac=fg/N;
-  let cut=null, ar=h/w, cutAr=null;
-  const colors=detectColors(d,w,h,frac>.04&&frac<.95?bg:null,[bl,ba,bb]);
-  if(frac>.04 && frac<.95){
-    // feathered alpha
-    let a=new Float32Array(N); for(let i=0;i<N;i++) a[i]=bg[i]?0:255;
-    for(let pass=0;pass<2;pass++){ const t=new Float32Array(N);
-      for(let y=0;y<h;y++) for(let xx=0;xx<w;xx++){ const i=y*w+xx; t[i]=(a[i]+(xx>0?a[i-1]:a[i])+(xx<w-1?a[i+1]:a[i]))/3; }
-      for(let y=0;y<h;y++) for(let xx=0;xx<w;xx++){ const i=y*w+xx; a[i]=(t[i]+(y>0?t[i-w]:t[i])+(y<h-1?t[i+w]:t[i]))/3; } }
-    let x0=w,y0=h,x1=0,y1=0;
-    for(let i=0;i<N;i++){ const v=clamp((a[i]-50)*1.4,0,255); d[i*4+3]=v; if(v>20){ const px=i%w,py=(i/w)|0; if(px<x0)x0=px; if(px>x1)x1=px; if(py<y0)y0=py; if(py>y1)y1=py; } }
-    x.putImageData(id,0,0);
-    const bw=x1-x0+1, bh=y1-y0+1, p=Math.round(Math.max(bw,bh)*.03);
-    const kk=Math.min(1,640/Math.max(bw+2*p,bh+2*p));
-    const cc=mkCanvas(Math.round((bw+2*p)*kk),Math.round((bh+2*p)*kk));
-    cc.getContext('2d').drawImage(c,x0,y0,bw,bh,p*kk,p*kk,bw*kk,bh*kk);
-    cut=cc.toDataURL('image/png'); cutAr=cc.height/cc.width;
+  if(fg/N<.04||fg/N>.95) return null;
+  let a=new Float32Array(N); for(let i=0;i<N;i++) a[i]=bg[i]?0:255;
+  for(let pass=0;pass<2;pass++){ const t=new Float32Array(N);
+    for(let y=0;y<h;y++) for(let x=0;x<w;x++){ const i=y*w+x; t[i]=(a[i]+(x>0?a[i-1]:a[i])+(x<w-1?a[i+1]:a[i]))/3; }
+    for(let y=0;y<h;y++) for(let x=0;x<w;x++){ const i=y*w+x; a[i]=(t[i]+(y>0?t[i-w]:t[i])+(y<h-1?t[i+w]:t[i]))/3; } }
+  const out=new Uint8ClampedArray(N); for(let i=0;i<N;i++) out[i]=(a[i]-50)*1.4; return out;
+}
+// AI: on-device segmentation model (downloaded once, then cached by the browser).
+const AI_LIB='https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm';
+let _ai=null;
+async function aiAlpha(src,onProgress){
+  if(!_ai) _ai=import(AI_LIB).catch(e=>{ _ai=null; throw e; });
+  const m=await _ai;
+  const blob=await new Promise(r=>src.toBlob(r,'image/png'));
+  const out=await m.segmentForeground(blob,{model:'isnet_quint8',output:{format:'image/png'},
+    progress:(key,cur,total)=>{ if(onProgress&&/fetch/.test(key)&&total) onProgress(cur/total); }});
+  const im=await loadImg(URL.createObjectURL(out));
+  const c=mkCanvas(src.width,src.height); c.getContext('2d').drawImage(im,0,0,src.width,src.height); URL.revokeObjectURL(im.src);
+  const d=ctx2d(c).getImageData(0,0,c.width,c.height).data, N=c.width*c.height, a=new Uint8ClampedArray(N);
+  let fg=0; for(let i=0;i<N;i++){ a[i]=d[i*4+3]; if(a[i]>128) fg++; }
+  if(fg/N<.02) throw new Error('empty mask');
+  S.set.aiReady=true; saveSet();
+  return a;
+}
+function alphaToURL(a,w,h){ const c=mkCanvas(w,h), x=c.getContext('2d'), id=x.createImageData(w,h);
+  for(let i=0;i<a.length;i++){ const o=i*4; id.data[o]=id.data[o+1]=id.data[o+2]=a[i]; id.data[o+3]=255; } x.putImageData(id,0,0); return c.toDataURL('image/png'); }
+async function alphaFromURL(url,w,h){ const im=await loadImg(url); const c=mkCanvas(w,h); c.getContext('2d').drawImage(im,0,0,w,h);
+  const d=ctx2d(c).getImageData(0,0,w,h).data, a=new Uint8ClampedArray(w*h); for(let i=0;i<a.length;i++) a[i]=d[i*4]; return a; }
+// Build the final picture + colours from source, mask and settings.
+function compose(src,alpha,{auto=true,bright=0,useCut=true}={}){
+  const w=src.width,h=src.height,N=w*h, id=enhancedData(src,{auto,bright}), d=id.data;
+  if(useCut&&alpha){
+    const bg=new Uint8Array(N); let x0=w,y0=h,x1=0,y1=0;
+    for(let i=0;i<N;i++){ const v=alpha[i]; d[i*4+3]=v; bg[i]=v<128?1:0;
+      if(v>20){ const px=i%w,py=(i/w)|0; if(px<x0)x0=px; if(px>x1)x1=px; if(py<y0)y0=py; if(py>y1)y1=py; } }
+    if(x1>x0&&y1>y0){
+      const colors=detectColors(d,w,h,bg,null);
+      const c=mkCanvas(w,h); c.getContext('2d').putImageData(id,0,0);
+      const bw=x1-x0+1, bh=y1-y0+1, p=Math.round(Math.max(bw,bh)*.03), kk=Math.min(1,640/Math.max(bw+2*p,bh+2*p));
+      const cc=mkCanvas(Math.round((bw+2*p)*kk),Math.round((bh+2*p)*kk));
+      cc.getContext('2d').drawImage(c,x0,y0,bw,bh,p*kk,p*kk,bw*kk,bh*kk);
+      return {img:cc.toDataURL('image/png'),ar:cc.height/cc.width,cut:true,...colors};
+    }
   }
-  return {orig,ar,cut,cutAr,...colors};
+  // no cut-out: estimate background from the border to find the garment colour
+  let r=0,g=0,b=0,n=0; for(let y=0;y<h;y+=4) for(const x of [0,1,w-2,w-1]){ const o=(y*w+x)*4; r+=d[o];g+=d[o+1];b+=d[o+2];n++; }
+  const colors=detectColors(d,w,h,null,rgbToLab(r/n,g/n,b/n));
+  const c=mkCanvas(w,h); c.getContext('2d').putImageData(id,0,0);
+  return {img:c.toDataURL('image/jpeg',.85),ar:h/w,cut:false,...colors};
 }
 function detectColors(d,w,h,bgMask,bgLab){
   const N=w*h, step=Math.max(1,Math.floor(Math.sqrt(N/9000))), buckets=new Map(); let tot=0;
@@ -263,23 +306,25 @@ $('scrim').onclick=closeSheet;
 
 /* ---------------- outfit boards (collage) ---------------- */
 function autoLayout(pieces){
-  const has=c=>pieces.some(p=>p.cat===c), arOf=p=>p.ar||1.2, R=.75; // board w/h
-  const L=[]; const add=(p,x,y,w,z)=>L.push({id:p.id,x,y,w,z});
-  const g=c=>pieces.find(p=>p.cat===c);
-  const outer=g('outer'), top=g('top'), bot=g('bottom'), full=g('full'), shoes=g('shoes'), bag=g('bag'), acc=g('acc');
-  const fitW=(p,w,maxH)=>Math.min(w,maxH/(arOf(p)*R));
-  let yEnd=.04;
-  if(full){ const w=fitW(full,.5,.74); add(full,outer?.40:.25,.04,w,2); yEnd=.04+w*arOf(full)*R; }
-  else {
-    if(top){ const w=fitW(top,outer?.44:.5,.46); add(top,outer?.42:.25,.04,w,3); yEnd=.04+w*arOf(top)*R; }
-    if(bot){ const y=Math.min(yEnd-.05,.42); const w=fitW(bot,.42,.94-y); add(bot,outer?.44:.29,Math.max(.3,y),w,1); }
-  }
-  if(outer){ const w=fitW(outer,.46,.56); add(outer,.03,.06,w,4); }
-  if(shoes){ const w=fitW(shoes,.30,.2); add(shoes,.04,.95-w*arOf(shoes)*R,w,5); }
-  if(bag){ const w=fitW(bag,.28,.26); add(bag,outer?.04:.03,outer?.62:.46,w,6); }
-  if(acc){ const w=fitW(acc,.22,.2); add(acc,.74,.70,w,7); }
-  // anything else (duplicates of a category) — tuck in the corner
-  pieces.filter(p=>!L.some(l=>l.id===p.id)).forEach((p,i)=>add(p,.72,.05+i*.2,.2,8+i));
+  // tidy flat-lay: centred column (top → bottom → shoes), jacket and bag on the sides
+  const R=.75, ar=p=>clamp(p.ar||1.2,.3,3), g=c=>pieces.find(p=>p.cat===c), L=[];
+  const add=(p,x,y,w,z)=>L.push({id:p.id,x:+x.toFixed(4),y:+y.toFixed(4),w:+w.toFixed(4),z});
+  const outer=g('outer'),top=g('top'),bot=g('bottom'),full=g('full'),shoes=g('shoes'),bag=g('bag'),acc=g('acc');
+  const col=[];
+  if(full) col.push({p:full,w:.34,z:2});
+  else { if(top) col.push({p:top,w:.3,z:3}); if(bot) col.push({p:bot,w:.25,z:2,ov:.015}); }
+  if(shoes) col.push({p:shoes,w:.2,z:1,ov:-.025});
+  const hOf=(c,k)=>Math.min(c.w*k*ar(c.p)*R,.5);
+  const total=k=>col.reduce((s,c,i)=>s+hOf(c,k)-(i?(c.ov||0):0),0);
+  let k=1; for(let n=0;n<12&&total(k)>.82;n++) k*=.9;
+  const cx=outer?.45:bag?.53:.5;
+  let y=(1-total(k))/2, topY=y, topW=0;
+  col.forEach((c,i)=>{ if(i) y-=c.ov||0; const h=hOf(c,k), w=h/(ar(c.p)*R);
+    add(c.p,cx-w/2,y,w,c.z); if(i===0){ topY=y; topW=w; } y+=h; });
+  if(outer){ let w=.27*k, h=Math.min(w*ar(outer)*R,.42); w=h/(ar(outer)*R); add(outer,Math.min(.96-w,cx+topW/2-.05),topY-.01,w,1.5); }
+  if(bag){ let w=.2, h=Math.min(w*ar(bag)*R,.24); w=h/(ar(bag)*R); add(bag,Math.max(.04,cx-(topW||.3)/2-w-.0),.5-h/2,w,4); }
+  if(acc){ let w=.13, h=Math.min(w*ar(acc)*R,.14); w=h/(ar(acc)*R); add(acc,outer?.8:.74,outer?.6:.3,w,5); }
+  pieces.filter(p=>!L.some(l=>l.id===p.id)).forEach((p,i)=>add(p,.78,.06+i*.16,.14,8+i));
   return L;
 }
 function boardHTML(layout,cls=''){
@@ -307,7 +352,244 @@ async function fetchWeather(manual){
   }catch(e){ if(manual) toast('ما قدرت أجيب الجو — اسمح بالموقع'); }
 }
 
-/* ---------------- stylist engine ---------------- */
+/* ---------------- stylist engine ----------------
+   Not random: every candidate outfit is enumerated and scored against
+   real styling formulas ("looks"), styling rules (formality, proportions,
+   patterns, colour count) and the user's learned taste. */
+const STYLES = [
+  {id:'casual',ar:'كاجوال',f:2.4},{id:'smart',ar:'سمارت',f:3.3},{id:'classic',ar:'رسمي/كلاسيك',f:4},
+  {id:'street',ar:'ستريت',f:2},{id:'sport',ar:'رياضي',f:1},{id:'evening',ar:'سهرة',f:4.6},{id:'trad',ar:'تقليدي',f:4},
+];
+const STY = Object.fromEntries(STYLES.map(s=>[s.id,s]));
+const FITS = [{id:'loose',ar:'واسع'},{id:'regular',ar:'عادي'},{id:'slim',ar:'ضيق'}];
+const PATTERNS = [{id:'solid',ar:'سادة'},{id:'stripe',ar:'مقلّم'},{id:'check',ar:'كاروهات'},{id:'print',ar:'نقشة'},{id:'denim',ar:'جينز'}];
+const OCC_F = {sport:1,casual:2.4,travel:2.4,work:3.4,out:3.5,event:4.4};
+const WARM_N = new Set(['كريمي','بيج','خاكي','بني','جملي']);
+const GREY_N = new Set(['أسود','رمادي','فحمي','فضي','أبيض']);
+const BLUE_N = new Set(['كحلي','جينز','سماوي','أزرق']);
+const EARTH = new Set(['زيتي','خاكي','جملي','بني','بيج','كريمي','خردلي','برتقالي','عنابي','ذهبي']);
+const EARTH_KEY = new Set(['زيتي','خاكي','جملي','خردلي','برتقالي','عنابي','بني']);
+const COOL_LOUD = new Set(['أزرق','سماوي','بنفسجي','ليلكي','فوشي','وردي','تركوازي']);
+const LOOKS = [
+  {id:'quiet',   e:'🤍', ar:'الفخامة الهادئة', d:'ألوان محايدة ناعمة وقصّات نظيفة — ستايل «Quiet Luxury» اللي ماسك التريند.'},
+  {id:'tonal',   e:'🎚️', ar:'تون أون تون',     d:'درجات من نفس اللون من فوق لتحت — يطوّلك ويبيّن اللبس مدروس.'},
+  {id:'pop',     e:'💥', ar:'محايد + لمسة لون', d:'أساس محايد وقطعة وحدة ملوّنة تخطف العين.'},
+  {id:'earth',   e:'🌿', ar:'ألوان الأرض',      d:'زيتي وجملي وبني وبيج — دافية وراقية وماسكة الموسم.'},
+  {id:'bw',      e:'🖤', ar:'أبيض وأسود',       d:'تباين كلاسيكي ما يطلع من الموضة.'},
+  {id:'sandwich',e:'🥪', ar:'قاعدة الساندويتش', d:'لون الحذاء يعيد لون القطعة الفوقية ويقفل اللوك — حركة الستايلستات.'},
+  {id:'smart',   e:'👔', ar:'سمارت كاجوال',     d:'قطعة مرتبة مع قطعة مريحة — أنيق بدون تكلّف.'},
+  {id:'street',  e:'🧢', ar:'ستريت ريلاكس',     d:'قصّات واسعة وسنيكرز — مريح وعصري.'},
+  {id:'denim',   e:'👖', ar:'دينم × دينم',       d:'جينز على جينز بدرجتين مختلفتين — رجع بقوة.'},
+  {id:'bold',    e:'🌈', ar:'ألوان جريئة',       d:'لونين قويين متناسقين على عجلة الألوان — للي يحب يلفت النظر.'},
+  {id:'onepiece',e:'✨', ar:'قطعة وحدة أنيقة',   d:'قطعة كاملة مع حذاء وشنطة متناسقين — سهل وفخم.'},
+];
+const LOOK = Object.fromEntries(LOOKS.map(l=>[l.id,l]));
+
+const KW = [
+  ['sport',  /رياض|تراك|جوقر|جوغر|ترنق|ركض|جيم|ليقنز|ليغنز/],
+  ['trad',   /ثوب|بشت|عباي|شماغ|غتر|جلابي|قفطان|دراع|كندور|مصر|طرح|نقاب|شيل/],
+  ['evening',/سهر|ساتان|ستان|حرير|لامع|ترتر|كعب|مخمل/],
+  ['classic',/بليزر|بدل|كوت|معطف|قماش|كلاسيك|لوفر|اكسفورد|أكسفورد|رسمي|ربطة|كرفته/],
+  ['street', /هودي|أوفر|اوفر|كارغو|كارجو|جيرسي|كاب|بومبر|سويت/],
+  ['smart',  /قميص|شينو|بولو|كارديغ|كارديج|تريكو|بوت|صوف|كتان|موكاسين/],
+  ['casual', /سنيكر|جينز|تيشيرت|تي شيرت|شورت|صندل|شبشب/],
+];
+function guessStyle(it){
+  const t=(it.name||'')+' '+(it.tags||[]).join(' ');
+  for(const [id,re] of KW) if(re.test(t)) return id;
+  return {outer:'smart',acc:'smart'}[it.cat]||'casual';
+}
+const styleOf = it => it.style||guessStyle(it);
+const fitOf = it => it.fit||'regular';
+const patOf = it => it.pattern||((colorInfo(it.color).name==='جينز'||/جينز|دنيم/.test(it.name||''))?'denim':'solid');
+const isNeu = it => colorInfo(it.color).neutral||patOf(it)==='denim';
+const formOf = it => STY[styleOf(it)].f;
+function toneGroup(ci){
+  if(WARM_N.has(ci.name)) return 'warm'; if(GREY_N.has(ci.name)) return 'grey'; if(BLUE_N.has(ci.name)) return 'blue';
+  if(ci.neutral) return 'n:'+ci.name; return null; // loud colours compare by hue
+}
+function sameTone(a,b){
+  const ga=toneGroup(a), gb=toneGroup(b);
+  if(ga&&gb) return ga===gb;
+  if(!ga&&!gb){ let d=Math.abs(a.h-b.h); if(d>180) d=360-d; return d<26; }
+  // loud vs neutral: blue family counts (navy + blue), warm family with mustard/camel-ish hues
+  const loud=ga?b:a, g=ga||gb; let h=loud.h;
+  return (g==='blue'&&h>195&&h<250)||(g==='warm'&&h>15&&h<50&&loud.s<.7);
+}
+const sameColor = (a,b) => a.family===b.family || labDist(rgbToLab(...hexToRgb(a.hex)),rgbToLab(...hexToRgb(b.hex)))<20;
+
+function evalLooks(ps,occ){
+  const g=c=>ps.find(p=>p.cat===c);
+  const top=g('top'), bot=g('bottom'), full=g('full'), outer=g('outer'), shoes=g('shoes'), bag=g('bag');
+  const main=ps.filter(p=>['top','bottom','full','outer'].includes(p.cat));
+  const core=shoes?[...main,shoes]:main;
+  const ci=p=>colorInfo(p.color);
+  const louds=ps.filter(p=>!isNeu(p)), loudNames=[...new Set(louds.map(p=>ci(p).name))];
+  const coreLoud=core.filter(p=>!isNeu(p));
+  const out=[];
+  const add=(id,v,why)=>out.push({id,v,why});
+  // quiet luxury
+  if(core.every(isNeu)&&main.every(p=>['solid','stripe'].includes(patOf(p)))
+    &&!core.some(p=>['sport','street'].includes(styleOf(p)))&&main.filter(p=>ci(p).name==='أسود').length<=1
+    &&core.some(p=>WARM_N.has(ci(p).name)||ci(p).name==='كحلي'))
+    add('quiet',main.some(p=>patOf(p)==='denim')?.7:1,'كل القطع محايدة وما فيها شعارات ولا نقشات');
+  // tonal / co-ord
+  if(main.length>=2&&main.every(p=>sameTone(ci(p),ci(main[0])))){
+    const ls=main.map(p=>ci(p).l), spread=Math.max(...ls)-Math.min(...ls);
+    if(!(toneGroup(ci(main[0]))==='grey'&&spread>.5))
+    add('tonal',spread>=.12?1:.75,spread>=.12?'درجات فاتحة وغامقة من نفس اللون':'طقم بنفس اللون (co-ord) — من أقوى الترندات');
+  }
+  // neutral + pop of colour
+  if(loudNames.length===1&&louds.length<=2&&core.length>=2){
+    const p=louds[0], where={bag:'الشنطة',shoes:'الحذاء',acc:'الإكسسوار',outer:'الجاكيت'}[p.cat];
+    add('pop',1,where?`لمسة ${loudNames[0]} في ${where} والباقي محايد`:`اللون ${loudNames[0]} نجم اللوك والباقي يخدمه`);
+  }
+  // earth tones
+  const earthN=[...core,...(bag?[bag]:[])].filter(p=>EARTH.has(ci(p).name)).length;
+  if(earthN>=3&&!ps.some(p=>COOL_LOUD.has(ci(p).name))&&ps.some(p=>EARTH_KEY.has(ci(p).name)))
+    add('earth',1,'ألوان دافية من الطبيعة متناسقة مع بعض');
+  // black & white
+  if(core.length>=2&&core.every(p=>GREY_N.has(ci(p).name))&&core.some(p=>ci(p).l<.3)&&core.some(p=>ci(p).l>.75))
+    add('bw',1,'أبيض وأسود بتباين واضح');
+  // sandwich rule
+  const upper=outer||top;
+  if(shoes&&upper&&bot&&sameColor(ci(shoes),ci(upper))&&!sameColor(ci(bot),ci(upper))&&Math.abs(ci(bot).l-ci(upper).l)>.18)
+    add('sandwich',1,`الحذاء ${ci(shoes).name} مثل ${upper===outer?'الجاكيت':'القطعة الفوقية'} — يربط اللوك ببعضه`);
+  // smart casual
+  if((top||full||outer)&&[top,outer,full].some(p=>p&&['smart','classic'].includes(styleOf(p)))
+    &&!(bot&&styleOf(bot)==='sport')&&!(shoes&&styleOf(shoes)==='sport')){
+    const f=core.reduce((s,p)=>s+formOf(p),0)/core.length;
+    if(f>=2.7&&f<=4.1){
+      const blazerSneaker=outer&&styleOf(outer)==='classic'&&shoes&&['casual','street'].includes(styleOf(shoes));
+      add('smart',blazerSneaker?1:.85,blazerSneaker?'جاكيت رسمي مع حذاء كاجوال — أنيق وعصري':'توازن بين المرتّب والمريح');
+    }
+  }
+  // street
+  if((top||outer)&&[top,outer].some(p=>p&&(fitOf(p)==='loose'||styleOf(p)==='street'))
+    &&(!shoes||['casual','street','sport'].includes(styleOf(shoes)))
+    &&bot&&(fitOf(bot)==='loose'||patOf(bot)==='denim'||styleOf(bot)==='street')&&['casual','out','travel'].includes(occ))
+    add('street',1,'قصّات مريحة وواسعة مع حذاء كاجوال');
+  // denim on denim
+  const den=main.filter(p=>patOf(p)==='denim');
+  if(den.length>=2){ const d=Math.abs(ci(den[0]).l-ci(den[1]).l); add('denim',d>=.08?1:.35,d>=.08?'جينز بدرجتين مختلفتين':'نفس درجة الجينز — يفضل درجتين مختلفة'); }
+  // bold colour
+  if(loudNames.length===2&&['out','event','casual'].includes(occ)){
+    const a=ci(coreLoud[0]||louds[0]), b=louds.map(ci).find(c=>c.name!==a.name);
+    if(b){ const h=harmony(a,b); if(h.k!=='clash'&&h.k!=='mono') add('bold',.8,`${a.name} مع ${b.name} ${h.k==='comp'?'ألوان متكاملة':'ألوان متجاورة'} على عجلة الألوان`); }
+  }
+  // one-piece
+  if(full&&shoes&&(!bag||isNeu(bag)||sameColor(ci(bag),ci(shoes)))&&core.filter(p=>p!==full).every(p=>isNeu(p)||sameTone(ci(p),ci(full))))
+    add('onepiece',1,bag&&sameColor(ci(bag),ci(shoes))?'الشنطة والحذاء نفس اللون — لمسة فخمة':'القطعة الكاملة هي البطل والباقي ناعم');
+  return out.sort((a,b)=>b.v-a.v);
+}
+
+function taste(){ if(!S.set.taste) S.set.taste={looks:{},pairs:{}}; return S.set.taste; }
+const pairKey=(a,b)=>a<b?a+'|'+b:b+'|'+a;
+async function learn(pieces,look,w=1){
+  const t=taste(); if(look) t.looks[look]=(t.looks[look]||0)+w;
+  const ids=pieces.map(p=>p.id);
+  for(let i=0;i<ids.length;i++) for(let j=i+1;j<ids.length;j++){ const k=pairKey(ids[i],ids[j]); t.pairs[k]=(t.pairs[k]||0)+w; }
+  await saveSet();
+}
+
+function scoreOutfit(ps,{occ,wx,bonus,ignoreRecent}){
+  const g=c=>ps.find(p=>p.cat===c), top=g('top'), bot=g('bottom'), shoes=g('shoes');
+  const main=ps.filter(p=>['top','bottom','full','outer'].includes(p.cat)), core=shoes?[...main,shoes]:main;
+  const ci=p=>colorInfo(p.color); let s=0; const why=[];
+  // colour basics
+  for(let i=0;i<core.length;i++) for(let j=i+1;j<core.length;j++){
+    const h=harmony(ci(core[i]),ci(core[j])); s+=h.s*.45; if(h.k==='clash') s-=1.2; }
+  const louds=new Set(ps.filter(p=>!isNeu(p)).map(p=>ci(p).name));
+  if(louds.size>2) s-=2.5*(louds.size-2);
+  if(top&&bot){ const a=ci(top),b=ci(bot); if(Math.abs(a.l-b.l)<.06&&a.name!==b.name) s-=1;
+    else if(Math.abs(a.l-b.l)>.3) why.push('تباين حلو بين فوق وتحت'); }
+  // patterns: one statement at a time
+  const pats=main.filter(p=>!['solid','denim'].includes(patOf(p)));
+  if(pats.length>1) s-=3; else if(pats.length===1&&main.length>1) why.push(`النقشة وحدة (${PATTERNS.find(x=>x.id===patOf(pats[0])).ar}) والباقي سادة`);
+  // formality fits the occasion and pieces agree with each other
+  if(core.length){
+    const fs=core.map(formOf), avg=fs.reduce((a,b)=>a+b,0)/fs.length;
+    if(occ&&OCC_F[occ]!=null){ const tg=OCC_F[occ]; s-=Math.abs(avg-tg)*1.5;
+      for(const f of fs) if(f<tg-1.8) s-=1.2; }
+    if(Math.max(...fs)-Math.min(...fs)>2.6) s-=1.2;
+    if(occ==='sport'&&shoes&&styleOf(shoes)!=='sport') s-=1.5;
+  }
+  // proportions
+  if(top&&bot){ const a=fitOf(top),b=fitOf(bot);
+    if((a==='loose'&&b==='slim')||(a==='slim'&&b==='loose')){ s+=.4; why.push('واسع مع ضيق — توازن في القصّات'); }
+    else if(a==='slim'&&b==='slim') s-=.2; }
+  // personal signals
+  const t=taste();
+  for(const p of ps){
+    if(p.fav) s+=.4;
+    if(!ignoreRecent){ const d=daysSince(p.lastWorn); if(d<3) s-=1.6; else if(d<7) s-=.6; }
+    if(occ&&p.occs&&p.occs.includes(occ)) s+=.5;
+    const sea=(p.seasons||['all'])[0]; if((wx==='cold'&&sea==='winter')||(wx==='hot'&&sea==='summer')) s+=.3;
+    if(bonus&&bonus.has(p.id)) s+=1.4;
+  }
+  if(wx==='mild'&&ps.some(p=>p.cat==='outer')) s-=.5;
+  for(let i=0;i<ps.length;i++) for(let j=i+1;j<ps.length;j++){ const n=t.pairs[pairKey(ps[i].id,ps[j].id)]; if(n) s+=.25*Math.min(3,n); }
+  // trend looks
+  const looks=evalLooks(ps,occ);
+  if(looks[0]) s+=3*looks[0].v+.12*Math.log1p(t.looks[looks[0].id]||0)*3;
+  if(looks[1]) s+=.6*looks[1].v;
+  return {s,looks,why};
+}
+
+function bestAddOn(ps,list,opt){
+  if(!list.length) return null;
+  let best=null, bs=scoreOutfit(ps,opt).s+.15; // an add-on must earn its place
+  for(const a of list){ const r=scoreOutfit([...ps,a],opt).s; if(r>bs){ bs=r; best=a; } }
+  return best;
+}
+
+function generate(opt={}){
+  const occ=opt.occ===undefined?S.occ:opt.occ, wx=opt.wx??S.wx, lockIds=opt.locks??S.locks, n=opt.n??6, want=opt.look??S.look;
+  const sopt={occ,wx,bonus:opt.bonus,ignoreRecent:opt.ignoreRecent};
+  const P={}; CATS.forEach(c=>P[c.id]=S.items.filter(i=>i.cat===c.id&&fits(i,occ,wx)));
+  const L={}; for(const [c,id] of Object.entries(lockIds)){ const it=byId(id); if(it) L[c]=it; }
+  const cores=[];
+  if(L.full) cores.push([L.full]);
+  else {
+    if(!L.top&&!L.bottom) P.full.forEach(f=>cores.push([f]));
+    const T=L.top?[L.top]:P.top, Bo=L.bottom?[L.bottom]:P.bottom;
+    for(const t of T) for(const b of Bo) cores.push([t,b]);
+  }
+  if(!cores.length) return [];
+  const outers=L.outer?[L.outer]:wx==='cold'?(P.outer.length?P.outer:[null]):wx==='mild'?[null,...P.outer]:[null];
+  const shoes=L.shoes?[L.shoes]:P.shoes.length?P.shoes:[null];
+  const total=cores.length*outers.length*shoes.length, combos=[];
+  if(total<=3500){ for(const c of cores) for(const o of outers) for(const sh of shoes) combos.push([...c,o,sh].filter(Boolean)); }
+  else for(let k=0;k<3500;k++) combos.push([...pick(cores),pick(outers),pick(shoes)].filter(Boolean));
+  const recent=new Set(Object.values(S.plans).filter(p=>p.worn&&daysSince(parseYmd(p.date).getTime())<10).map(p=>[...p.ids].sort().join('|')));
+  const shown=opt.ignoreRecent?new Set():(S.shown||new Set());
+  const wantK=o=>(want&&want!=='all'&&o.r.looks.some(l=>l.id===want&&l.v>=.5))?100:0;
+  let scored=combos.map(ps=>({ps,r:scoreOutfit(ps,sopt)})).sort((a,b)=>(wantK(b)+b.r.s)-(wantK(a)+a.r.s)).slice(0,90);
+  // finish the best ones with the bag / accessory that improve them most
+  const res=new Map();
+  for(const {ps} of scored){
+    let full=[...ps];
+    const bag=L.bag||bestAddOn(full,P.bag,sopt); if(bag) full.push(bag);
+    const acc=L.acc||bestAddOn(full,P.acc,sopt); if(acc) full.push(acc);
+    const key=full.map(p=>p.id).sort().join('|'); if(res.has(key)) continue;
+    const r=scoreOutfit(full,sopt);
+    if(!opt.ignoreRecent&&recent.has(key)) r.s-=3;
+    if(opt.avoid&&opt.avoid.has(key)) r.s-=4;
+    if(shown.has(key)) r.s-=1.2;
+    r.s+=Math.random()*.35;
+    res.set(key,{pieces:full,key,...r,look:r.looks[0]?r.looks[0].id:null});
+  }
+  let list=[...res.values()].sort((a,b)=>b.s-a.s);
+  if(want&&want!=='all'){ const f=list.filter(o=>o.looks.some(l=>l.id===want&&l.v>=.5)); f.forEach(o=>o.look=want); list=f; }
+  // variety: best outfit of each look first, avoid near-duplicates
+  const out=[], usedLook=new Set();
+  const similar=o=>out.some(x=>x.pieces.filter(p=>p.cat!=='shoes'&&p.cat!=='bag'&&p.cat!=='acc'&&o.pieces.some(q=>q.id===p.id)).length>=2);
+  for(const o of list){ if(out.length>=n) break; if(o.look&&!usedLook.has(o.look)&&!similar(o)){ out.push(o); usedLook.add(o.look); } }
+  for(const o of list){ if(out.length>=n) break; if(!out.includes(o)&&!similar(o)) out.push(o); }
+  for(const o of list){ if(out.length>=n) break; if(!out.includes(o)) out.push(o); }
+  out.sort((a,b)=>b.s-a.s);
+  return out;
+}
 function fits(it,occ,wx){
   if(it.laundry) return false;
   if(it.occs&&it.occs.length&&occ&&!it.occs.includes(occ)) return false;
@@ -316,70 +598,16 @@ function fits(it,occ,wx){
   if(wx==='cold'&&sea==='summer'&&(it.cat==='outer'||it.cat==='shoes')) return false;
   return true;
 }
-function scoreOutfit(pieces,{occ,wx,bonus,ignoreRecent}){
-  const core=pieces.filter(p=>['top','bottom','full','outer','shoes'].includes(p.cat));
-  const cols=core.map(p=>colorInfo(p.color)); let s=0; const kinds={};
-  for(let i=0;i<cols.length;i++) for(let j=i+1;j<cols.length;j++){
-    const h=harmony(cols[i],cols[j]); const w=(core[i].cat==='shoes'||core[j].cat==='shoes')?.6:1; s+=h.s*w; kinds[h.k]=(kinds[h.k]||0)+1; }
-  const loud=new Set(cols.filter(c=>!c.neutral).map(c=>c.name));
-  if(loud.size>2) s-=2.5*(loud.size-2);
-  if(loud.size===0) s+=(new Set(cols.map(c=>Math.round(c.l*4))).size>1)?.5:-.8;
-  const t=pieces.find(p=>p.cat==='top'), b=pieces.find(p=>p.cat==='bottom');
-  if(t&&b){ const ct=colorInfo(t.color),cb=colorInfo(b.color); if(Math.abs(ct.l-cb.l)<.06&&ct.name!==cb.name) s-=1; }
-  for(const p of pieces){
-    if(p.fav) s+=.4;
-    if(!ignoreRecent){ const d=daysSince(p.lastWorn); if(d<3) s-=1.6; else if(d<7) s-=.6; }
-    if(occ&&p.occs&&p.occs.includes(occ)) s+=.5;
-    const sea=(p.seasons||['all'])[0]; if((wx==='cold'&&sea==='winter')||(wx==='hot'&&sea==='summer')) s+=.3;
-    if(bonus&&bonus.has(p.id)) s+=1.4;
-  }
-  return {s, kinds, loud:[...loud]};
+function explain(o){
+  const parts=[], l=o.look&&LOOK[o.look], lv=o.looks.find(x=>x.id===o.look);
+  if(lv) parts.push(lv.why);
+  o.looks.filter(x=>x.id!==o.look&&x.v>=.75).slice(0,1).forEach(x=>parts.push(`وفيه بعد لمسة «${LOOK[x.id].ar}»`));
+  parts.push(...o.why.slice(0,1));
+  if(o.pieces.some(p=>p.cat==='outer')&&S.wx==='cold') parts.push('أضفت طبقة خارجية عشان البرد');
+  const fresh=o.pieces.filter(p=>!p.wears).length; if(fresh&&S.items.some(i=>i.wears)) parts.push(fresh===1?'وفيه قطعة ما لبستها قبل — فرصتها':`وفيه ${fresh} قطع ما لبستها قبل`);
+  return {title:l?`${l.e} ${l.ar}`:'✨ تنسيق متوازن', desc:l?l.d:'ألوان متناسقة وقطع تمشي مع بعض.', points:parts.slice(0,3)};
 }
-function generate(opt={}){
-  const occ=opt.occ??S.occ, wx=opt.wx??S.wx, lockIds=opt.locks??S.locks, n=opt.n??6;
-  const pool=c=>S.items.filter(i=>i.cat===c&&fits(i,occ,wx));
-  const P={}; CATS.forEach(c=>P[c.id]=pool(c.id));
-  const locked={}; for(const [c,id] of Object.entries(lockIds)){ const it=byId(id); if(it) locked[c]=it; }
-  const canSplit=(locked.top||P.top.length)&&(locked.bottom||P.bottom.length), canFull=locked.full||P.full.length;
-  if(!canSplit&&!canFull) return [];
-  const recentKeys=new Set(Object.values(S.plans).filter(p=>p.worn&&daysSince(parseYmd(p.date).getTime())<10).map(p=>[...p.ids].sort().join('|')));
-  const seen=new Map();
-  for(let k=0;k<600;k++){
-    let useFull = locked.full?true:(locked.top||locked.bottom)?false:
-      (canFull&&(!canSplit||Math.random()<P.full.length/(P.full.length+Math.min(P.top.length,P.bottom.length)+1)));
-    if(useFull&&!canFull) useFull=false; if(!useFull&&!canSplit) useFull=true;
-    const ps=[];
-    if(useFull) ps.push(locked.full||pick(P.full)); else { ps.push(locked.top||pick(P.top)); ps.push(locked.bottom||pick(P.bottom)); }
-    const wantOuter=locked.outer||(P.outer.length&&(wx==='cold'||(wx==='mild'&&Math.random()<.35)));
-    if(wantOuter) ps.push(locked.outer||pick(P.outer));
-    if(locked.shoes||P.shoes.length) ps.push(locked.shoes||pick(P.shoes));
-    if(locked.bag||(P.bag.length&&Math.random()<.7)) ps.push(locked.bag||pick(P.bag));
-    if(locked.acc||(P.acc.length&&Math.random()<.6)) ps.push(locked.acc||pick(P.acc));
-    const key=ps.map(p=>p.id).sort().join('|'); if(seen.has(key)) continue;
-    const r=scoreOutfit(ps,{occ,wx,bonus:opt.bonus,ignoreRecent:opt.ignoreRecent});
-    if(!opt.ignoreRecent&&recentKeys.has(key)) r.s-=3;
-    if(opt.avoid&&opt.avoid.has(key)) r.s-=4;
-    r.s+=Math.random()*.8; seen.set(key,{pieces:ps,key,...r});
-  }
-  const sorted=[...seen.values()].sort((a,b)=>b.s-a.s), out=[];
-  for(const o of sorted){ if(out.length>=n) break;
-    const overlap=out.some(x=>x.pieces.filter(p=>p.cat!=='shoes'&&o.pieces.some(q=>q.id===p.id)).length>=2);
-    if(overlap&&sorted.length>n*3) continue; out.push(o); }
-  return out.length?out:sorted.slice(0,n);
-}
-function explain(r,pieces){
-  const k=r.kinds, parts=[];
-  if(r.loud.length===0) parts.push('ألوان محايدة هادية — صعب تغلط فيها');
-  else if(r.loud.length===1) parts.push(`لون واحد بارز (${r.loud[0]}) والباقي محايد يبرزه`);
-  if(k.mono) parts.push('تدرّج من نفس اللون يعطي مظهر مرتب وطويل');
-  if(k.analog) parts.push('ألوان متجاورة على عجلة الألوان، ناعمة ومتناسقة');
-  if(k.comp) parts.push('ألوان متكاملة تعطي تباين حلو');
-  if(k.clash) parts.push('فيه لونين جريئين مع بعض — إذا تحب المغامرة');
-  if(pieces.some(p=>p.cat==='outer')) parts.push('أضفت طبقة خارجية عشان الجو');
-  const fresh=pieces.filter(p=>!p.wears).length; if(fresh) parts.push(fresh===1?'فيه قطعة ما لبستها قبل':`فيه ${fresh} قطع ما لبستها قبل`);
-  return parts.slice(0,3).join('. ')+'.';
-}
-const starsOf = s => '★'.repeat(clamp(Math.round(s/2.2),1,5)) + '☆'.repeat(5-clamp(Math.round(s/2.2),1,5));
+const starsOf = s => { const n=s>=9.2?5:s>=7.6?4:s>=5.8?3:2; return '★'.repeat(n)+'☆'.repeat(5-n); };
 
 /* ---------------- wear tracking (plans are the source of truth) ---------------- */
 async function recomputeWear(){
@@ -416,7 +644,7 @@ function render(){
   ({closet:renderCloset,outfits:renderOutfits,plan:renderPlan,stats:renderStats})[S.view]();
 }
 function go(v){
-  S.view=v; ['closet','outfits','plan','stats'].forEach(x=>$('v-'+x).classList.toggle('hidden',x!==v));
+  S.view=v; document.body.classList.toggle('home',v==='closet'); ['closet','outfits','plan','stats'].forEach(x=>$('v-'+x).classList.toggle('hidden',x!==v));
   document.querySelectorAll('nav .t').forEach(t=>t.classList.toggle('on',t.dataset.v===v));
   render(); window.scrollTo(0,0);
 }
@@ -431,36 +659,110 @@ function closetList(){
     price:(a,b)=>(+b.price||0)-(+a.price||0),color:(a,b)=>colorInfo(a.color).h-colorInfo(b.color).h}[C.sort];
   return l.sort(srt);
 }
+const pct = s => clamp(Math.round(62+(s-4)*5.5),55,99);
+function greeting(){ const h=new Date().getHours(); return h<12?'صباح الخير ☀️':h<18?'يومك سعيد 🌤️':'مساء الخير 🌙'; }
+function canStyle(){ const has=c=>S.items.some(i=>i.cat===c&&!i.laundry); return (has('top')&&has('bottom'))||has('full'); }
+function heroHTML(){
+  if(!canStyle()) return '';
+  const valid=o=>o&&o.pieces.every(p=>S.items.includes(p)&&!p.laundry);
+  if(!S.hero||S.hero.day!==today()||!valid(S.hero.o)){
+    if(!S.wxManual) S.wx=wxFor(today());
+    const r=generate({n:1,look:'all',locks:{}}); S.hero=r[0]?{day:today(),o:r[0]}:null; }
+  if(!S.hero) return '';
+  const o=S.hero.o, ex=explain(o), w=WXM[S.wx];
+  return `<button class="hero" id="heroBtn"><div class="tx"><span class="kick">أوتفت اليوم · ${w.e} ${w.ar}</span>
+    <b>${ex.title.replace(/^\S+\s/,'')}</b><span class="sm">${OCC[S.occ].ar} · تناسق ${pct(o.s)}%</span><span class="go">شوفه</span></div>
+    ${boardHTML(autoLayout(sortPieces(o.pieces)))}</button>`;
+}
+const CAT_IC = {
+  top:'<path d="M8 4 4 6.5 5.5 10 7 9.4V20h10V9.4l1.5.6L20 6.5 16 4c-.6 1.4-2.1 2.3-4 2.3S8.6 5.4 8 4z"/>',
+  bottom:'<path d="M7 3h10l1 18h-4.5L12 9.5 10.5 21H6z"/>',
+  full:'<path d="M9.5 3h5l-.8 4 4.3 13H6l4.3-13z"/>',
+  outer:'<path d="M8 3.5 4 6v14h5V12M16 3.5 20 6v14h-5V12M8 3.5 12 8l4-4.5M12 8v12"/>',
+  shoes:'<path d="M3 16.5V9l4.5 1.5L11 13l6 1.5c2.2.5 4 1.6 4 3.5H3z"/>',
+  bag:'<path d="M5 9h14l-1 11H6zM9 9V7a3 3 0 0 1 6 0v2"/>',
+  acc:'<circle cx="12" cy="12" r="5"/><path d="M9.5 7.5 10 3h4l.5 4.5M9.5 16.5 10 21h4l.5-4.5"/>',
+  all:'<rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/>',
+};
+const catSvg = id => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">${CAT_IC[id]}</svg>`;
+function profileHTML(){
+  const worn=Object.values(S.plans).filter(p=>p.worn).length, saved=S.outfits.filter(o=>o.ids.some(byId)).length;
+  const nm=S.set.name||'خزانتي', av=S.set.avatar;
+  return `<div class="profile">
+    <div class="cover" ${S.set.cover?`style="background-image:url('${S.set.cover}')"`:''}>
+      <button class="cbtn" id="pCover" aria-label="غيّر الغلاف">${IC.edit}</button>
+      <button class="cbtn" id="pSet" aria-label="الإعدادات"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
+    </div>
+    <div class="pcard">
+      <button class="avatar" id="pAv" aria-label="صورتك">${av?`<img src="${av}" alt="">`:`<span>${esc(nm.trim()[0]||'خ')}</span>`}</button>
+      <button class="pname" id="pName">${esc(nm)}</button>
+      <div class="handle">${greeting()}</div>
+      <div class="ptabs" id="pTabs">
+        <button class="${S.closet.tab!=='outfits'?'on':''}" data-t="items"><b>${S.items.length}</b><span>قطعة</span></button>
+        <button class="${S.closet.tab==='outfits'?'on':''}" data-t="outfits"><b>${saved}</b><span>أوتفت</span></button>
+        <button data-t="wears"><b>${worn}</b><span>لبسة</span></button>
+      </div>
+    </div></div>`;
+}
 function renderCloset(){
   const v=$('v-closet'), C=S.closet, items=S.items;
   const isIOS=/iP(hone|ad|od)/.test(navigator.userAgent), standalone=navigator.standalone||matchMedia('(display-mode: standalone)').matches;
   const tip = isIOS&&!standalone&&!S.set.tipClosed ? `<div class="banner"><span>📲</span><span>ثبّته كتطبيق: زر <b>المشاركة</b> في سفاري ← <b>«إضافة إلى الشاشة الرئيسية»</b></span><button class="x" id="tipX">✕</button></div>` : '';
+  let body='';
   if(!items.length){
-    v.innerHTML=tip+`<div class="empty"><div class="big">🧺</div><h3>ابدأ بخزانتك</h3>
-      <p class="hint">صوّر قطعة قطعة على خلفية سادة (سرير، أرضية، جدار).<br>التطبيق يشيل الخلفية لحاله ويعرف اللون.</p>
+    body=`<div class="empty"><div class="big">👕</div><h3>ابدأ بخزانتك</h3>
+      <p class="hint">صوّر قطعة قطعة — الذكاء الاصطناعي يشيل الخلفية ويعرف اللون والنوع.</p>
       <button class="btn primary" style="margin-top:14px" onclick="pickPhotos()">صوّر أول قطعة</button></div>`;
+  } else if(C.tab==='outfits'){
+    const list=[...S.outfits].filter(o=>o.ids.some(byId)).sort((a,b)=>b.created-a.created);
+    body=`<div class="ogrid" id="cOutfits"><button class="newcard" id="cNewO">${IC.plus}سوّ أوتفت بنفسك</button>
+      ${list.map(o=>`<button class="oc" data-id="${o.id}">${boardHTML(layoutOf(o))}</button>`).join('')}</div>`;
   } else {
     const count=c=>items.filter(i=>i.cat===c).length;
+    const latest=c=>items.filter(i=>i.cat===c).sort((a,b)=>b.added-a.added)[0];
     const fams=[...new Set(items.map(i=>colorInfo(i.color).family))];
     const laundryN=items.filter(i=>i.laundry).length;
     const list=closetList();
-    v.innerHTML=tip+`
+    body=`${heroHTML()}
+      <div class="cats" id="ccats"><button class="cat ${C.cat==='all'?'on':''}" data-v="all"><span class="c">${catSvg('all')}</span>الكل</button>
+        ${CATS.filter(c=>count(c.id)).map(c=>{ const it=latest(c.id); return `<button class="cat ${C.cat===c.id?'on':''}" data-v="${c.id}">
+          <span class="c ${it?'ph':''}">${it?`<img src="${it.img}" alt="">`:catSvg(c.id)}<span class="n">${count(c.id)}</span></span>${c.ar}</button>`; }).join('')}</div>
       <div class="search">${IC.search}<input id="cq" type="search" placeholder="ابحث: اسم، ماركة، لون، تاق…" value="${esc(C.q)}">
         <select id="csort">${[['new','الأحدث'],['most','الأكثر لبس'],['least','الأقل لبس'],['price','السعر'],['color','اللون']].map(([k,t])=>`<option value="${k}" ${C.sort===k?'selected':''}>${t}</option>`).join('')}</select></div>
-      <div class="chips" id="ccats"><button class="chip ${C.cat==='all'?'on':''}" data-v="all">الكل <span class="n">${items.length}</span></button>
-        ${CATS.filter(c=>count(c.id)).map(c=>`<button class="chip ${C.cat===c.id?'on':''}" data-v="${c.id}">${c.e} ${c.ar} <span class="n">${count(c.id)}</span></button>`).join('')}</div>
       <div class="chips" id="ccols" style="margin-top:-4px">
         ${laundryN?`<button class="chip ${C.laundry?'on':''}" data-l="1">🧺 بالغسيل <span class="n">${laundryN}</span></button>`:''}
         ${fams.map(f=>`<button class="chip dotchip ${C.color===f?'on':''}" data-c="${f}" aria-label="${esc(colorInfo(f).name)}"><span class="sw" style="background:${f}"></span></button>`).join('')}</div>
       ${list.length?`<div class="grid" id="cgrid">${list.map(tileHTML).join('')}</div>`:`<div class="empty"><h3>ما فيه نتائج</h3><p class="hint">جرّب فلتر ثاني.</p></div>`}`;
+  }
+  v.innerHTML=profileHTML()+tip+body;
+  // profile
+  $('pSet').onclick=()=>$('settingsBtn').click();
+  $('pAv').onclick=()=>pickProfileImg('avatar',256);
+  $('pCover').onclick=()=>pickProfileImg('cover',900);
+  $('pName').onclick=async()=>{ const n=prompt('وش اسمك؟',S.set.name||''); if(n===null) return; S.set.name=n.trim(); await saveSet(); renderCloset(); };
+  $('pTabs').onclick=e=>{ const b=e.target.closest('[data-t]'); if(!b) return; if(b.dataset.t==='wears'){ S.pTab='cal'; go('plan'); return; } C.tab=b.dataset.t; renderCloset(); };
+  if($('heroBtn')) $('heroBtn').onclick=()=>{ const o=S.hero.o; S.locks={}; S.look='all'; S.planDate=null;
+    S.results=[o,...generate().filter(x=>x.key!==o.key)].slice(0,6); S.idx=0; S.oTab='style'; go('outfits'); };
+  if($('cNewO')) $('cNewO').onclick=()=>openBuilder({onSave:async(ids,layout)=>{ await saveOutfit(ids,layout); toast('انحفظ ♥'); }});
+  if($('cOutfits')) $('cOutfits').onclick=e=>{ const c=e.target.closest('.oc'); if(c) outfitSheet(S.outfits.find(o=>o.id===c.dataset.id)); };
+  if($('cq')){
     $('cq').oninput=e=>{ C.q=e.target.value; const l=closetList(); const g=$('cgrid'); if(g) g.innerHTML=l.map(tileHTML).join(''); else renderCloset(); };
     $('csort').onchange=e=>{ C.sort=e.target.value; renderCloset(); };
     $('ccats').onclick=e=>{ const b=e.target.closest('[data-v]'); if(!b) return; C.cat=b.dataset.v; renderCloset(); };
     $('ccols').onclick=e=>{ const b=e.target.closest('button'); if(!b) return;
       if(b.dataset.l) C.laundry=!C.laundry; else C.color=C.color===b.dataset.c?null:b.dataset.c; renderCloset(); };
-    v.onclick=e=>{ const t=e.target.closest('.tile'); if(t) itemSheet(byId(t.dataset.id)); };
   }
+  v.onclick=e=>{ const t=e.target.closest('.tile'); if(t) itemSheet(byId(t.dataset.id)); };
   if($('tipX')) $('tipX').onclick=async()=>{ S.set.tipClosed=true; await saveSet(); renderCloset(); };
+}
+function pickProfileImg(key,max){
+  const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
+  inp.onchange=async()=>{ const f=inp.files[0]; if(!f) return; const u=URL.createObjectURL(f);
+    try{ const im=await loadImg(u); let c=srcFromImage(im,max);
+      if(key==='avatar'){ const s=Math.min(c.width,c.height), q=mkCanvas(s,s); q.getContext('2d').drawImage(c,(c.width-s)/2,(c.height-s)/2,s,s,0,0,s,s); c=q; }
+      S.set[key]=c.toDataURL('image/jpeg',.82); await saveSet(); renderCloset(); }catch(e){ toast('ما قدرت أقرأ الصورة'); }
+    URL.revokeObjectURL(u); };
+  inp.click();
 }
 function tileHTML(i){
   return `<button class="tile ${i.laundry?'laundry':''}" data-id="${i.id}"><img src="${i.img}" class="${i.cut?'':'full'}" alt="" loading="lazy">
@@ -471,22 +773,43 @@ function tileHTML(i){
 /* add photos */
 function pickPhotos(){ $('fileIn').value=''; $('fileIn').click(); }
 $('addBtn').onclick=pickPhotos;
+// runtime working copies (_src canvas, _alpha mask) for new or saved items
+async function ensureWork(it){
+  if(it._src) return;
+  if(it.src){ const im=await loadImg(it.src); it._src=srcFromImage(im,4000); it._alpha=it.mask?await alphaFromURL(it.mask,it._src.width,it._src.height):null; return; }
+  // item saved before v3: only the final picture exists
+  const im=await loadImg(it.img), w=im.naturalWidth, h=im.naturalHeight, c=mkCanvas(w,h); c.getContext('2d').drawImage(im,0,0);
+  let a=null; if(it.cut){ const d=ctx2d(c).getImageData(0,0,w,h).data; a=new Uint8ClampedArray(w*h); for(let i=0;i<a.length;i++) a[i]=d[i*4+3]; }
+  const s=mkCanvas(w,h), sx=s.getContext('2d'); sx.fillStyle='#fff'; sx.fillRect(0,0,w,h); sx.drawImage(c,0,0);
+  Object.assign(it,{_src:s,_alpha:a,enh:false,bright:0,useCut:!!a});
+}
+function recompose(it){
+  const r=compose(it._src,it._alpha,{auto:it.enh!==false,bright:it.bright||0,useCut:it.useCut!==false});
+  it.img=r.img; it.ar=r.ar; it.cut=r.cut; if(it._colorAuto){ it.color=r.color; it.color2=r.color2; }
+}
 $('fileIn').addEventListener('change',async e=>{
   const files=[...e.target.files]; if(!files.length) return;
-  const drafts=[];
+  const drafts=[]; let aiOk=S.set.aiBg!==false, aiFailed=false;
   for(let n=0;n<files.length;n++){
-    busy(true,files.length>1?`أجهّز الصور… ${n+1} / ${files.length}`:'أشيل الخلفية وأعرف اللون…');
+    const lbl=files.length>1?` (${n+1} / ${files.length})`:'';
+    busy(true,(aiOk?'✨ أشيل الخلفية بالذكاء الاصطناعي…':'أشيل الخلفية وأعرف اللون…')+lbl);
     await new Promise(r=>setTimeout(r,30));
     const u=URL.createObjectURL(files[n]);
-    try{ const im=await loadImg(u); const r=processPhoto(im);
-      const ar=r.cut?r.cutAr:r.ar;
-      const cat=S.closet.cat!=='all'?S.closet.cat:(ar<.75?'shoes':ar>1.45?'bottom':'top');
-      drafts.push({id:uid(),_orig:r.orig,_origAr:r.ar,_cut:r.cut,_cutAr:r.cutAr,img:r.cut||r.orig,cut:!!r.cut,ar,cat,
-        color:r.color,color2:r.color2,name:'',brand:'',price:'',size:'',tags:[],seasons:['all'],occs:[],fav:false,laundry:false,wears:0,lastWorn:0,added:Date.now()+n});
+    try{
+      const im=await loadImg(u), src=srcFromImage(im); let alpha=null, kind=null;
+      if(aiOk){ try{ alpha=await aiAlpha(src,p=>busy(true,`أنزّل محرك الذكاء الاصطناعي — مرة وحدة بس… ${Math.round(p*100)}%`)); kind='ai'; }
+        catch(err){ console.warn('AI background removal failed',err); aiOk=false; aiFailed=true; } }
+      if(!alpha){ busy(true,'أشيل الخلفية وأعرف اللون…'+lbl); await new Promise(r=>setTimeout(r,20)); alpha=classicAlpha(src); kind=alpha?'classic':null; }
+      const it={id:uid(),_src:src,_alpha:alpha,_colorAuto:true,maskKind:kind,enh:true,bright:0,useCut:!!alpha,
+        name:'',brand:'',price:'',size:'',tags:[],seasons:['all'],occs:[],fav:false,laundry:false,wears:0,lastWorn:0,added:Date.now()+n};
+      recompose(it);
+      it.cat=S.closet.cat!=='all'?S.closet.cat:(it.ar<.75?'shoes':it.ar>1.45?'bottom':'top');
+      drafts.push(it);
     }catch(err){ console.warn(err); }
     URL.revokeObjectURL(u);
   }
   busy(false);
+  if(aiFailed) toast('الذكاء الاصطناعي يحتاج نت أول مرة — استخدمت الطريقة السريعة');
   if(drafts.length) editItem(drafts,0,true); else toast('ما قدرت أقرأ الصورة');
 });
 
@@ -498,7 +821,7 @@ function itemSheet(it){
     <div class="preview"><img src="${it.img}" class="${it.cut?'':'full'}" alt=""></div>
     <div class="sheethead"><h2>${esc(itemName(it))}</h2>
       <button class="iconbtn" id="iFav" style="color:${it.fav?'var(--hi)':'inherit'}">${it.fav?IC.heartF:IC.heart}</button></div>
-    <div class="hint" style="margin-top:-8px">${CAT[it.cat].e} ${CAT[it.cat].ar} · <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${it.color};vertical-align:-1px"></span> ${ci.name}${it.color2?` + ${colorInfo(it.color2).name}`:''}${it.brand?` · ${esc(it.brand)}`:''}${it.size?` · مقاس ${esc(it.size)}`:''}</div>
+    <div class="hint" style="margin-top:-8px">${CAT[it.cat].e} ${CAT[it.cat].ar} · <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${it.color};vertical-align:-1px"></span> ${ci.name}${it.color2?` + ${colorInfo(it.color2).name}`:''}${it.brand?` · ${esc(it.brand)}`:''}${it.size?` · مقاس ${esc(it.size)}`:''} · ${STY[styleOf(it)].ar}${fitOf(it)!=='regular'?' · '+FITS.find(f=>f.id===fitOf(it)).ar:''}</div>
     ${(it.tags||[]).length?`<div class="tags">${it.tags.map(t=>`<span>#${esc(t)}</span>`).join('')}</div>`:''}
     <div class="kv">
       <div><b>${it.wears||0}</b><span>مرة لبستها</span></div>
@@ -523,19 +846,26 @@ function itemSheet(it){
 }
 
 /* item editor */
-function editItem(list,i,isNew){
-  const it=list[i]; const occSel=new Set(it.occs||[]);
+async function editItem(list,i,isNew){
+  const it=list[i];
+  if(!it._src){ busy(true,'لحظة…'); try{ await ensureWork(it); }catch(e){ console.warn(e); } busy(false); }
+  const occSel=new Set(it.occs||[]);
   const sea=(it.seasons||['all'])[0];
   openSheet(`
     <h2>${isNew?'قطعة جديدة':'تعديل القطعة'}</h2>
     <div class="preview"><img id="ePrev" src="${it.img}" class="${it.cut?'':'full'}" alt="">${list.length>1?`<span class="count">${i+1} / ${list.length}</span>`:''}</div>
-    ${isNew&&it._cut?`<div class="seg" id="eBg" style="margin-bottom:16px"><button class="${it.cut?'on':''}" data-v="1">✂️ بدون خلفية</button><button class="${it.cut?'':'on'}" data-v="0">🖼️ الصورة الأصلية</button></div>`:''}
-    ${isNew&&!it._cut?`<p class="hint" style="margin:-2px 0 14px">ما قدرت أشيل الخلفية من هالصورة. صوّرها على خلفية سادة لنتيجة أحلى.</p>`:''}
+    ${it._src?`<div class="imgtools">
+      <div class="seg ${it._alpha?'':'hidden'}" id="eBg"><button class="${it.useCut!==false?'on':''}" data-v="1">✂️ بدون خلفية</button><button class="${it.useCut!==false?'':'on'}" data-v="0">🖼️ الأصلية</button></div>
+      ${!it._alpha?`<p class="hint" style="margin:0">ما قدرت أشيل الخلفية تلقائياً — جرّب الذكاء الاصطناعي أو امسحها بيدك.</p>`:''}
+      <div class="row">${it.maskKind!=='ai'?`<button class="btn" id="eAI">✨ شيل الخلفية بالذكاء الاصطناعي</button>`:''}<button class="btn" id="eTouch">🖌️ تعديل يدوي</button></div>
+      <label class="tgl"><input type="checkbox" id="eEnh" ${it.enh!==false?'checked':''}><span>✨ تحسين تلقائي للإضاءة والألوان</span></label>
+      <div class="slider"><span>🔅</span><input type="range" id="eBright" min="-0.5" max="0.5" step="0.05" value="${it.bright||0}"><span>🔆</span></div>
+    </div>`:''}
     <div class="field"><label>النوع</label><div class="wrapchips" id="eCat">
       ${CATS.map(c=>`<button class="chip ${c.id===it.cat?'on':''}" data-v="${c.id}">${c.e} ${c.ar}</button>`).join('')}</div></div>
     <div class="field"><label>الاسم (اختياري)</label><input class="inp" id="eName" value="${esc(it.name)}" placeholder="${CAT[it.cat].ph}"></div>
     <div class="field"><label>اللون الأساسي — <span id="eCName">${colorInfo(it.color).name}</span></label>
-      <div class="swatches" id="eCol"><button class="sw on" data-v="${it.color}" style="background:${it.color}"></button>
+      <div class="swatches" id="eCol"><button class="sw on" id="eAuto" data-v="${it.color}" style="background:${it.color}"></button>
         ${PALETTE.map(p=>`<button class="sw" data-v="${p[0]}" style="background:${p[0]}" aria-label="${p[1]}"></button>`).join('')}</div>
       <div class="hint" style="margin-top:6px">أول دائرة اللون اللي اكتشفته${it.color2?` · لون ثاني: ${colorInfo(it.color2).name}`:''}</div></div>
     <div class="grid2">
@@ -546,6 +876,10 @@ function editItem(list,i,isNew){
     <div class="field"><label>تنفع لـ (إذا ما اخترت = تنفع لكل شي)</label><div class="wrapchips" id="eOcc">
       ${OCCS.map(o=>`<button class="chip ${occSel.has(o.id)?'on':''}" data-v="${o.id}">${o.e} ${o.ar}</button>`).join('')}</div></div>
     <div class="field"><label>الموسم</label><div class="seg" id="eSea">${SEASONS.map(s=>`<button class="${sea===s.id?'on':''}" data-v="${s.id}">${s.ar}</button>`).join('')}</div></div>
+    <div class="field"><label>الستايل ${it.style?'':'<span style="opacity:.7">— خمّنته، عدّله إذا غلط</span>'}</label><div class="wrapchips" id="eSty">
+      ${STYLES.map(x=>`<button class="chip ${styleOf(it)===x.id?'on':''}" data-v="${x.id}">${x.ar}</button>`).join('')}</div></div>
+    <div class="field"><label>القصّة</label><div class="seg" id="eFit">${FITS.map(x=>`<button class="${fitOf(it)===x.id?'on':''}" data-v="${x.id}">${x.ar}</button>`).join('')}</div></div>
+    <div class="field"><label>النقشة</label><div class="wrapchips" id="ePat">${PATTERNS.map(x=>`<button class="chip ${patOf(it)===x.id?'on':''}" data-v="${x.id}">${x.ar}</button>`).join('')}</div></div>
     <div class="field"><label>تاقات (افصل بفاصلة)</label><input class="inp" id="eTags" value="${esc((it.tags||[]).join('، '))}" placeholder="مثلاً: كتان، رسمي، هدية"></div>
     <div class="row" style="margin-top:6px">
       ${isNew&&list.length>1?`<button class="btn ghost" id="eSkip">تخطي</button>`:''}
@@ -554,17 +888,31 @@ function editItem(list,i,isNew){
   const single=(box,fn)=>$(box).onclick=e=>{ const b=e.target.closest('[data-v]'); if(!b) return;
     $(box).querySelectorAll('[data-v]').forEach(x=>x.classList.toggle('on',x===b)); fn(b.dataset.v); };
   single('eCat',v=>{ it.cat=v; $('eName').placeholder=CAT[v].ph; });
-  single('eCol',v=>{ it.color=v; $('eCName').textContent=colorInfo(v).name; });
+  single('eCol',v=>{ it.color=v; it._colorAuto=$('eAuto').classList.contains('on'); $('eCName').textContent=colorInfo(v).name; });
+  const refresh=()=>{ recompose(it); $('ePrev').src=it.img; $('ePrev').className=it.cut?'':'full';
+    if(it._colorAuto){ $('eAuto').dataset.v=it.color; $('eAuto').style.background=it.color; $('eCName').textContent=colorInfo(it.color).name; } };
+  if(it._src){
+    single('eBg',v=>{ it.useCut=v==='1'; refresh(); });
+    $('eEnh').onchange=e=>{ it.enh=e.target.checked; refresh(); };
+    let raf=0; $('eBright').oninput=e=>{ it.bright=+e.target.value; cancelAnimationFrame(raf); raf=requestAnimationFrame(refresh); };
+    $('eTouch').onclick=()=>openTouch(it,()=>{ it.useCut=true; refresh(); $('eBg').classList.remove('hidden');
+      $('eBg').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.v==='1')); });
+    if($('eAI')) $('eAI').onclick=async()=>{
+      busy(true,'✨ أشيل الخلفية بالذكاء الاصطناعي…');
+      try{ it._alpha=await aiAlpha(it._src,p=>busy(true,`أنزّل محرك الذكاء الاصطناعي — مرة وحدة بس… ${Math.round(p*100)}%`)); it.maskKind='ai'; it.useCut=true; busy(false); editItem(list,i,isNew); }
+      catch(e){ console.warn(e); busy(false); toast('ما قدرت — تأكد إنك متصل بالنت أول مرة'); } };
+  }
   single('eSea',v=>{ it.seasons=[v]; });
-  if($('eBg')) single('eBg',v=>{ it.cut=v==='1'; it.img=it.cut?it._cut:it._orig; it.ar=it.cut?it._cutAr:it._origAr; $('ePrev').src=it.img; $('ePrev').className=it.cut?'':'full'; });
+  single('eSty',v=>{ it.style=v; }); single('eFit',v=>{ it.fit=v; }); single('ePat',v=>{ it.pattern=v; });
   $('eOcc').onclick=e=>{ const b=e.target.closest('[data-v]'); if(!b) return; b.classList.toggle('on'); it.occs=[...$('eOcc').querySelectorAll('.on')].map(x=>x.dataset.v); };
   const next=()=>{ if(isNew&&i<list.length-1) editItem(list,i+1,true); else closeSheet(); };
   $('eSave').onclick=async()=>{
     it.name=$('eName').value.trim(); it.brand=$('eBrand').value.trim(); it.size=$('eSize').value.trim();
     it.price=$('ePrice').value.replace(/[^\d.]/g,''); it.tags=$('eTags').value.split(/[,،]/).map(s=>s.trim()).filter(Boolean);
-    const rec={...it}; delete rec._orig; delete rec._cut; delete rec._origAr; delete rec._cutAr;
+    if(it._src){ it.src=it._src.toDataURL('image/jpeg',.85); it.mask=it._alpha?alphaToURL(it._alpha,it._src.width,it._src.height):null; }
+    const rec={}; for(const k in it) if(k[0]!=='_') rec[k]=it[k];
     await DB.put('items',rec); const k=S.items.findIndex(x=>x.id===rec.id); if(k<0) S.items.push(rec); else S.items[k]=rec;
-    S.results=[]; render(); toast('انحفظت ✓'); next(); };
+    S.results=[]; S.hero=null; render(); toast('انحفظت ✓'); next(); };
   if($('eSkip')) $('eSkip').onclick=next;
 }
 
@@ -597,15 +945,20 @@ function renderStylist(){
   const head=`${S.planDate?`<div class="plannote">📅 تنسيق لـ ${fmtDate(S.planDate)}<button id="pnX">✕</button></div>`:''}
     ${wxBarHTML()}
     <div class="chips" id="occPick">${OCCS.map(x=>`<button class="chip ${S.occ===x.id?'on':''}" data-v="${x.id}">${x.e} ${x.ar}</button>`).join('')}</div>
-    <div class="seg" id="wxPick" style="margin-bottom:14px">${WX.map(w=>`<button class="${S.wx===w.id?'on':''}" data-v="${w.id}">${w.e} ${w.ar}</button>`).join('')}</div>`;
-  if(!o){ b.innerHTML=head+`<div class="empty"><div class="big">🤔</div><h3>ما لقيت تركيبة تناسب</h3><p class="hint">جرّب مناسبة أو جو ثاني، أو فك القفل.</p></div>`; bindStyleHead(); return; }
-  const ps=sortPieces(o.pieces), saved=S.outfits.some(x=>x.key===o.key);
+    <div class="seg" id="wxPick" style="margin-bottom:12px">${WX.map(w=>`<button class="${S.wx===w.id?'on':''}" data-v="${w.id}">${w.e} ${w.ar}</button>`).join('')}</div>
+    <div class="lbl">الستايل</div>
+    <div class="chips" id="lookPick"><button class="chip ${S.look==='all'?'on':''}" data-v="all">🪄 فاجئني</button>${LOOKS.map(l=>`<button class="chip ${S.look===l.id?'on':''}" data-v="${l.id}">${l.e} ${l.ar}</button>`).join('')}</div>`;
+  if(!o){ b.innerHTML=head+`<div class="empty"><div class="big">🤔</div><h3>ما لقيت تركيبة تناسب</h3><p class="hint">${S.look!=='all'?`قطعك الحالية ما تكفي لستايل «${LOOK[S.look].ar}». جرّب «فاجئني» أو ستايل ثاني.`:'جرّب مناسبة أو جو ثاني، أو فك القفل.'}</p></div>`; bindStyleHead(); return; }
+  const ps=sortPieces(o.pieces), saved=S.outfits.some(x=>x.key===o.key), ex=explain(o);
+  S.shown.add(o.key);
   b.innerHTML=head+`<div class="ocard">
+      <div class="lookhead"><b>${ex.title}</b><span class="score">تناسق ${pct(o.s)}%</span></div>
+      <p class="lookdesc">${ex.desc}</p>
       ${boardHTML(autoLayout(ps))}
       <div class="pieces" id="pcs">${ps.map(p=>`<div class="pc"><div class="im"><img src="${p.img}" alt=""></div>
         <button class="lk ${S.locks[p.cat]===p.id?'on':''}" data-cat="${p.cat}" data-id="${p.id}" aria-label="ثبّت">${S.locks[p.cat]===p.id?IC.lock:IC.unlock}</button></div>`).join('')}</div>
-      <div class="meta"><div class="pal">${ps.map(p=>`<i style="background:${p.color}"></i>`).join('')}</div><span class="stars">${starsOf(o.s)}</span></div>
-      <p class="why">${explain(o,ps)}</p>
+      <div class="meta"><div class="pal">${ps.map(p=>`<i style="background:${p.color}"></i>`).join('')}</div></div>
+      <ul class="why">${ex.points.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>
       <div class="pager">${S.results.map((_,i)=>`<i class="${i===S.idx?'on':''}"></i>`).join('')}</div>
       <div class="row" style="margin-bottom:10px">
         <button class="btn sq" id="oFav" style="color:${saved?'var(--hi)':'inherit'}" aria-label="حفظ">${saved?IC.heartF:IC.heart}</button>
@@ -624,11 +977,12 @@ function renderStylist(){
   $('oNext').onclick=()=>{ if(S.idx<S.results.length-1) S.idx++; else { S.results=generate(); S.idx=0; } renderStylist(); };
   $('oFav').onclick=async()=>{ const ex=S.outfits.find(x=>x.key===o.key);
     if(ex){ S.outfits=S.outfits.filter(x=>x!==ex); await DB.del('outfits',ex.id); toast('انشال من المحفوظة'); }
-    else { await saveOutfit(o.pieces.map(p=>p.id),null,{occ:S.occ}); toast('انحفظ ♥'); } renderStylist(); };
+    else { await saveOutfit(o.pieces.map(p=>p.id),null,{occ:S.occ,look:o.look}); await learn(o.pieces,o.look,1); toast('انحفظ ♥ — بتعلّم ذوقك'); } renderStylist(); };
   $('oEdit').onclick=()=>openBuilder({ids:o.pieces.map(p=>p.id),layout:autoLayout(ps),onSave:async(ids,layout)=>{ await saveOutfit(ids,layout,{occ:S.occ}); toast('انحفظ بالمحفوظة ♥'); }});
   if($('oPlan')) $('oPlan').onclick=()=>pickDateSheet(addDays(today(),1),async d=>{ await setPlan(d,o.pieces.map(p=>p.id),null,false); toast(`انضاف لـ ${fmtDate(d)} 📅`); });
   $('oWear').onclick=async()=>{
     const d=S.planDate||today(); await setPlan(d,o.pieces.map(p=>p.id),null,d===today()&&!S.planDate?true:d<=today());
+    await learn(o.pieces,o.look,1.5);
     S.locks={}; S.results=[];
     if(S.planDate){ S.planDate=null; S.wxManual=false; toast('انضاف للتقويم 📅'); S.view='plan'; go('plan'); }
     else { toast('تمام ✓ سجلته بالتقويم'); renderStylist(); } };
@@ -637,6 +991,7 @@ function bindStyleHead(){
   $('occPick').onclick=e=>{ const b=e.target.closest('[data-v]'); if(!b) return; S.occ=b.dataset.v; S.results=[]; renderStylist(); };
   $('wxPick').onclick=e=>{ const b=e.target.closest('[data-v]'); if(!b) return; S.wx=b.dataset.v; S.wxManual=true; S.results=[]; renderStylist(); };
   $('wxGet').onclick=()=>{ S.wxManual=false; fetchWeather(true); };
+  $('lookPick').onclick=e=>{ const b=e.target.closest('[data-v]'); if(!b) return; S.look=b.dataset.v; S.results=[]; renderStylist(); };
   if($('pnX')) $('pnX').onclick=()=>{ S.planDate=null; S.wxManual=false; S.results=[]; renderStylist(); };
 }
 function renderSaved(){
@@ -734,6 +1089,57 @@ $('bTools').onclick=e=>{ const b=e.target.closest('[data-a]'); if(!b||!B.sel) re
   function bRenderTools(){ const keep=B.layout; bRender(); B.layout=keep; }
 })();
 
+/* ---------------- manual touch-up (erase / restore / rotate) ---------------- */
+const TU={};
+function openTouch(it,onDone){
+  Object.assign(TU,{it,onDone,src:it._src,orig:it._alpha?new Uint8ClampedArray(it._alpha):null,mode:'erase',undo:[]});
+  TU.alpha=it._alpha?new Uint8ClampedArray(it._alpha):new Uint8ClampedArray(it._src.width*it._src.height).fill(255);
+  $('tMode').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.v==='erase'));
+  $('touch').classList.add('on'); requestAnimationFrame(()=>{ tuPrep(); tuFit(); tuDraw(); });
+}
+function tuPrep(){
+  const w=TU.src.width,h=TU.src.height;
+  TU.rgb=enhancedData(TU.src,{auto:TU.it.enh!==false,bright:TU.it.bright||0});
+  for(const id of ['tBase','tTop']){ $(id).width=w; $(id).height=h; }
+  $('tBase').getContext('2d').putImageData(TU.rgb,0,0);
+  TU.out=new ImageData(new Uint8ClampedArray(TU.rgb.data),w,h);
+}
+function tuFit(){
+  const st=$('tStage').getBoundingClientRect(), w=TU.src.width, h=TU.src.height;
+  const k=Math.min((st.width-32)/w,(st.height-12)/h); $('tCv').style.width=w*k+'px'; $('tCv').style.height=h*k+'px'; TU.k=k;
+}
+function tuDraw(){ const d=TU.out.data, a=TU.alpha; for(let i=0;i<a.length;i++) d[i*4+3]=a[i]; $('tTop').getContext('2d').putImageData(TU.out,0,0); }
+function tuPaint(x,y){
+  const w=TU.src.width,h=TU.src.height, r=+$('tSize').value/TU.k/2, a=TU.alpha, er=TU.mode==='erase';
+  const x0=Math.max(0,Math.floor(x-r)),x1=Math.min(w-1,Math.ceil(x+r)),y0=Math.max(0,Math.floor(y-r)),y1=Math.min(h-1,Math.ceil(y+r));
+  for(let yy=y0;yy<=y1;yy++) for(let xx=x0;xx<=x1;xx++){ const dd=Math.hypot(xx-x,yy-y); if(dd>r) continue;
+    const f=clamp((r-dd)/(r*.35),0,1), i=yy*w+xx; a[i]=er?Math.min(a[i],255*(1-f)):Math.max(a[i],255*f); }
+}
+(()=>{
+  const cv=$('tCv'), cur=$('tCur'); let last=null, raf=0;
+  const pos=e=>{ const r=cv.getBoundingClientRect(); return {x:(e.clientX-r.left)/TU.k,y:(e.clientY-r.top)/TU.k,cx:e.clientX-r.left,cy:e.clientY-r.top}; };
+  const showCur=p=>{ const s=+$('tSize').value; Object.assign(cur.style,{display:'block',left:p.cx+'px',top:p.cy+'px',width:s+'px',height:s+'px'}); };
+  cv.addEventListener('pointerdown',e=>{ cv.setPointerCapture(e.pointerId); TU.undo.push(new Uint8ClampedArray(TU.alpha)); if(TU.undo.length>20) TU.undo.shift();
+    const p=pos(e); last=p; tuPaint(p.x,p.y); tuDraw(); showCur(p); });
+  cv.addEventListener('pointermove',e=>{ if(!last) return; const p=pos(e), r=+$('tSize').value/TU.k/2;
+    const n=Math.max(1,Math.ceil(Math.hypot(p.x-last.x,p.y-last.y)/(r/3)));
+    for(let k=1;k<=n;k++) tuPaint(last.x+(p.x-last.x)*k/n,last.y+(p.y-last.y)*k/n);
+    last=p; showCur(p); cancelAnimationFrame(raf); raf=requestAnimationFrame(tuDraw); });
+  const end=()=>{ last=null; cur.style.display='none'; tuDraw(); };
+  cv.addEventListener('pointerup',end); cv.addEventListener('pointercancel',end);
+})();
+$('tMode').onclick=e=>{ const b=e.target.closest('[data-v]'); if(!b) return; TU.mode=b.dataset.v; $('tMode').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b)); };
+$('tUndo').onclick=()=>{ const a=TU.undo.pop(); if(a&&a.length===TU.alpha.length){ TU.alpha=a; tuDraw(); } };
+$('tReset').onclick=()=>{ TU.undo.push(new Uint8ClampedArray(TU.alpha)); TU.alpha=TU.orig&&TU.orig.length===TU.alpha.length?new Uint8ClampedArray(TU.orig):TU.alpha.fill(255); tuDraw(); };
+$('tRot').onclick=()=>{ // rotate photo and mask 90° clockwise
+  const w=TU.src.width,h=TU.src.height, c=mkCanvas(h,w), x=c.getContext('2d');
+  x.translate(h,0); x.rotate(Math.PI/2); x.drawImage(TU.src,0,0); TU.src=c;
+  const a=new Uint8ClampedArray(w*h); for(let y=0;y<h;y++) for(let xx=0;xx<w;xx++) a[xx*h+(h-1-y)]=TU.alpha[y*w+xx];
+  TU.alpha=a; TU.undo=[]; TU.orig=null; tuPrep(); tuFit(); tuDraw(); };
+$('tCancel').onclick=()=>$('touch').classList.remove('on');
+$('tDone').onclick=()=>{ const it=TU.it; it._src=TU.src; it._alpha=TU.alpha; it.maskKind='manual'; $('touch').classList.remove('on'); TU.onDone&&TU.onDone(); };
+addEventListener('resize',()=>{ if($('touch').classList.contains('on')) tuFit(); });
+
 /* ---------------- calendar & trips ---------------- */
 function renderPlan(){
   const v=$('v-plan');
@@ -830,8 +1236,8 @@ function planTrip(t){
   const chosen=new Set(), keys=new Set(); t.days=[];
   for(let i=0;i<n;i++){
     const occ=t.occs[i%t.occs.length];
-    const r=generate({occ,wx:t.wx,locks:{},n:1,bonus:chosen,avoid:keys,ignoreRecent:true})[0]
-      || generate({occ:null,wx:t.wx,locks:{},n:1,bonus:chosen,avoid:keys,ignoreRecent:true})[0];
+    const r=generate({occ,wx:t.wx,locks:{},n:1,bonus:chosen,avoid:keys,ignoreRecent:true,look:'all'})[0]
+      || generate({occ:null,wx:t.wx,locks:{},n:1,bonus:chosen,avoid:keys,ignoreRecent:true,look:'all'})[0];
     if(!r) break;
     r.pieces.forEach(p=>chosen.add(p.id)); keys.add(r.key);
     t.days.push({date:addDays(t.from,i),occ,ids:r.pieces.map(p=>p.id)});
@@ -854,7 +1260,7 @@ function tripSheet(t){
   $('tPack').onclick=async e=>{ const b=e.target.closest('[data-id]'); if(!b) return; t.packed[b.dataset.id]=!t.packed[b.dataset.id]; await DB.put('trips',t); tripSheet(t); renderTrips(); };
   $('tDays').onclick=async e=>{ const b=e.target.closest('[data-k]'); if(!b) return; const k=+b.dataset.k, d=t.days[k];
     const others=new Set(t.days.filter((_,j)=>j!==k).flatMap(x=>x.ids)), keys=new Set(t.days.map(x=>[...x.ids].sort().join('|')));
-    const r=generate({occ:d.occ,wx:t.wx,locks:{},n:3,bonus:others,avoid:keys,ignoreRecent:true}); if(!r.length) return;
+    const r=generate({occ:d.occ,wx:t.wx,locks:{},n:3,bonus:others,avoid:keys,ignoreRecent:true,look:'all'}); if(!r.length) return;
     d.ids=pick(r).pieces.map(p=>p.id); await DB.put('trips',t); tripSheet(t); };
   $('tCal').onclick=async()=>{ for(const d of t.days) if(!S.plans[d.date]) await setPlan(d.date,d.ids,null,false); toast('انضافت للتقويم 📅'); };
   $('tRe').onclick=async()=>{ planTrip(t); t.packed={}; await DB.put('trips',t); tripSheet(t); renderTrips(); };
@@ -910,6 +1316,9 @@ function insight(catN){
 $('settingsBtn').onclick=()=>{
   openSheet(`<h2>الإعدادات</h2>
     <div class="field"><label>العملة</label><div class="wrapchips" id="sCur">${CURS.map(c=>`<button class="chip ${S.set.cur===c?'on':''}" data-v="${c}">${c}</button>`).join('')}</div></div>
+    <div class="field"><label>إزالة الخلفية</label>
+      <label class="tgl"><input type="checkbox" id="sAI" ${S.set.aiBg!==false?'checked':''}><span>✨ بالذكاء الاصطناعي (أدق — يشتغل على أي خلفية)</span></label>
+      <p class="hint" style="margin-top:6px">أول مرة ينزّل محرك صغير (~٤٠ ميقا) ويشتغل بعدها على جوالك بدون نت. صورك ما تطلع من جوالك أبد.</p></div>
     <div class="field"><label>الجو</label><button class="btn block" id="sWx">${IC.pin} ${S.set.wxOn?'تحديث الجو من موقعي':'استخدم موقعي لجو حقيقي'}</button>
       <p class="hint" style="margin-top:6px">موقعك يروح بس لخدمة الطقس المجانية Open-Meteo، وما ينحفظ.</p></div>
     <div class="field"><label>النسخة الاحتياطية</label>
@@ -919,6 +1328,7 @@ $('settingsBtn').onclick=()=>{
     <p class="hint" style="margin-top:18px">📸 نصايح للتصوير: افرد القطعة على خلفية سادة تختلف عن لونها، بإضاءة نهار، وصوّر من فوق. كذا تنشال الخلفية صح ويطلع اللون مضبوط.</p>`);
   $('sCur').onclick=async e=>{ const b=e.target.closest('[data-v]'); if(!b) return; S.set.cur=b.dataset.v; await saveSet();
     $('sCur').querySelectorAll('.chip').forEach(x=>x.classList.toggle('on',x===b)); render(); };
+  $('sAI').onchange=async e=>{ S.set.aiBg=e.target.checked; await saveSet(); };
   $('sWx').onclick=()=>{ closeSheet(); S.wxManual=false; fetchWeather(true); };
   $('bExp').onclick=exportData;
   $('bImp').onclick=()=>{ $('importIn').value=''; $('importIn').click(); };
