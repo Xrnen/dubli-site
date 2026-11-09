@@ -63,11 +63,12 @@ const DB = (() => {
   function open(){
     if (dbp) return dbp;
     dbp = new Promise((res,rej)=>{
-      const r = indexedDB.open('khzanti',2);
+      const r = indexedDB.open('khzanti',3);
       r.onupgradeneeded = e => {
         const d = r.result;
         if (e.oldVersion < 1){ d.createObjectStore('items',{keyPath:'id'}); d.createObjectStore('outfits',{keyPath:'id'}); d.createObjectStore('kv'); }
         if (e.oldVersion < 2){ d.createObjectStore('plans',{keyPath:'date'}); d.createObjectStore('trips',{keyPath:'id'}); }
+        if (e.oldVersion < 3){ d.createObjectStore('wish',{keyPath:'id'}); }
       };
       r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
     });
@@ -94,7 +95,7 @@ const DB = (() => {
 /* ---------------- state ---------------- */
 const now0 = new Date();
 const S = {
-  items:[], outfits:[], plans:{}, trips:[], set:{cur:'ر.س', wxOn:false, tipClosed:false},
+  items:[], wish:[], outfits:[], plans:{}, trips:[], set:{cur:'ر.س', wxOn:false, tipClosed:false},
   view:'closet',
   closet:{cat:'all', q:'', color:null, sort:'new', laundry:false, tab:'items'}, hero:null,
   oTab:'style', occ:'casual', wx:null, wxManual:false, wxInfo:null, planDate:null,
@@ -328,7 +329,7 @@ function autoLayout(pieces){
   return L;
 }
 function boardHTML(layout,cls=''){
-  return `<div class="board ${cls}">${[...layout].sort((a,b)=>a.z-b.z).map(l=>{ const it=byId(l.id); if(!it) return '';
+  return `<div class="board ${cls}">${[...layout].sort((a,b)=>a.z-b.z).map(l=>{ const it=byId(l.id)||S.wish.find(w=>w.id===l.id); if(!it) return '';
     return `<img src="${it.img}" class="${it.cut?'':'nocut'}" style="left:${(l.x*100).toFixed(2)}%;top:${(l.y*100).toFixed(2)}%;width:${(l.w*100).toFixed(2)}%" alt="">`; }).join('')}</div>`;
 }
 const layoutOf = o => (o.layout && o.layout.length ? o.layout.filter(l=>byId(l.id)) : autoLayout(o.ids.map(byId).filter(Boolean)));
@@ -591,7 +592,7 @@ function generate(opt={}){
   return out;
 }
 function fits(it,occ,wx){
-  if(it.laundry) return false;
+  if(it.laundry||it.out||it.wish) return false;
   if(it.occs&&it.occs.length&&occ&&!it.occs.includes(occ)) return false;
   const sea=(it.seasons||['all'])[0];
   if(wx==='hot'&&sea==='winter') return false;
@@ -734,7 +735,8 @@ function renderCloset(){
         ${fams.map(f=>`<button class="chip dotchip ${C.color===f?'on':''}" data-c="${f}" aria-label="${esc(colorInfo(f).name)}"><span class="sw" style="background:${f}"></span></button>`).join('')}</div>
       ${list.length?`<div class="grid" id="cgrid">${list.map(tileHTML).join('')}</div>`:`<div class="empty"><h3>ما فيه نتائج</h3><p class="hint">جرّب فلتر ثاني.</p></div>`}`;
   }
-  v.innerHTML=profileHTML()+tip+body;
+  v.innerHTML=profileHTML()+(items.length?quickActionsHTML():'')+tip+body;
+  bindQuickActions();
   // profile
   $('pSet').onclick=()=>$('settingsBtn').click();
   $('pAv').onclick=()=>pickProfileImg('avatar',256);
@@ -743,7 +745,7 @@ function renderCloset(){
   $('pTabs').onclick=e=>{ const b=e.target.closest('[data-t]'); if(!b) return; if(b.dataset.t==='wears'){ S.pTab='cal'; go('plan'); return; } C.tab=b.dataset.t; renderCloset(); };
   if($('heroBtn')) $('heroBtn').onclick=()=>{ const o=S.hero.o; S.locks={}; S.look='all'; S.planDate=null;
     S.results=[o,...generate().filter(x=>x.key!==o.key)].slice(0,6); S.idx=0; S.oTab='style'; go('outfits'); };
-  if($('cNewO')) $('cNewO').onclick=()=>openBuilder({onSave:async(ids,layout)=>{ await saveOutfit(ids,layout); toast('انحفظ ♥'); }});
+  if($('cNewO')) $('cNewO').onclick=()=>createOutfitSheet();
   if($('cOutfits')) $('cOutfits').onclick=e=>{ const c=e.target.closest('.oc'); if(c) outfitSheet(S.outfits.find(o=>o.id===c.dataset.id)); };
   if($('cq')){
     $('cq').oninput=e=>{ C.q=e.target.value; const l=closetList(); const g=$('cgrid'); if(g) g.innerHTML=l.map(tileHTML).join(''); else renderCloset(); };
@@ -787,7 +789,7 @@ function recompose(it){
   it.img=r.img; it.ar=r.ar; it.cut=r.cut; if(it._colorAuto){ it.color=r.color; it.color2=r.color2; }
 }
 // Turn picture blobs into draft items (AI cut-out → editor). meta pre-fills fields.
-async function intake(sources){
+async function intake(sources,opts={}){
   const drafts=[]; let aiOk=S.set.aiBg!==false, aiFailed=false;
   for(let n=0;n<sources.length;n++){
     const {blob,meta={}}=sources[n], lbl=sources.length>1?` (${n+1} / ${sources.length})`:'';
@@ -801,7 +803,7 @@ async function intake(sources){
       if(!alpha){ busy(true,'أشيل الخلفية وأعرف اللون…'+lbl); await new Promise(r=>setTimeout(r,20)); alpha=classicAlpha(src); kind=alpha?'classic':null; }
       const it={id:uid(),_src:src,_alpha:alpha,_colorAuto:true,maskKind:kind,enh:!meta.store,bright:0,useCut:!!alpha,
         name:meta.name||'',brand:meta.brand||'',price:meta.price||'',size:'',tags:[],seasons:['all'],occs:[],fav:false,laundry:false,wears:0,lastWorn:0,added:Date.now()+n,
-        ...(meta.url?{url:meta.url}:{})};
+        ...(meta.url?{url:meta.url}:{}),...(opts.wish?{wish:true}:{})};
       recompose(it);
       it.cat=meta.cat||(S.closet.cat!=='all'&&CAT[S.closet.cat]?S.closet.cat:(it.ar<.75?'shoes':it.ar>1.45?'bottom':'top'));
       drafts.push(it);
@@ -814,18 +816,6 @@ async function intake(sources){
 }
 $('fileIn').addEventListener('change',e=>{ const f=[...e.target.files]; if(f.length) intake(f.map(blob=>({blob}))); });
 
-/* ---- add sheet: camera/photos, product link, paste ---- */
-function addSheet(){
-  openSheet(`<h2>أضف قطعة</h2><div class="addopts">
-    <button id="aPhoto"><span class="ai">📷</span><span><b>صوّر أو اختر من الصور</b><small>تقدر تختار أكثر من صورة</small></span></button>
-    <button id="aLink"><span class="ai">🔗</span><span><b>من رابط منتج</b><small>الصق رابط من أي متجر — أجيب صوره النظيفة بدون خلفية</small></span></button>
-    <button id="aPaste"><span class="ai">📋</span><span><b>الصق صورة</b><small>انسخ صورة من إنستقرام أو سفاري والصقها هنا</small></span></button>
-  </div>`);
-  $('aPhoto').onclick=()=>{ closeSheet(); pickPhotos(); };
-  $('aLink').onclick=()=>linkSheet();
-  $('aPaste').onclick=pasteImage;
-}
-$('addBtn').onclick=addSheet;
 async function pasteImage(){
   try{
     const items=await navigator.clipboard.read();
@@ -834,8 +824,9 @@ async function pasteImage(){
     toast('ما فيه صورة منسوخة — اضغط مطوّل على أي صورة واختر «نسخ»');
   }catch(e){ toast('اضغط «لصق» لما يطلب منك، أو انسخ صورة أول'); }
 }
-function linkSheet(pre=''){
-  openSheet(`<h2>من رابط منتج</h2>
+function linkSheet(pre='',wish=false){
+  S._linkWish=wish;
+  openSheet(`<h2>${wish?'🤍 أضف للأمنيات':'من رابط منتج'}</h2>
     <p class="hint" style="margin-top:-6px">افتح المنتج في أي متجر (زارا، نمشي، شي إن، H&M…) ← زر المشاركة ← <b>نسخ الرابط</b>، والصقه هنا.</p>
     <div class="row" style="margin:12px 0"><input class="inp" id="lUrl" type="url" inputmode="url" dir="ltr" placeholder="https://…" value="${esc(pre)}" style="flex:1">
       <button class="btn" id="lPaste" style="flex:none">لصق</button></div>
@@ -849,7 +840,7 @@ const IMG_PROXY=(u,w)=>`https://wsrv.nl/?url=${encodeURIComponent(u)}&w=${w}&h=$
 const PAGE_PROXIES=[u=>u, u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u), u=>'https://corsproxy.io/?url='+encodeURIComponent(u)];
 async function fetchTimeout(u,ms=15000){ const c=new AbortController(), t=setTimeout(()=>c.abort(),ms); try{ return await fetch(u,{signal:c.signal}); } finally{ clearTimeout(t); } }
 async function fetchPage(u){
-  for(const p of PAGE_PROXIES){ try{ const r=await fetchTimeout(p(u)); if(r.ok){ const t=await r.text(); if(t.length>300) return t; } }catch(e){} }
+  for(const p of PAGE_PROXIES){ try{ const r=await fetchTimeout(p(u)); if(r.ok){ const t=await r.text(); if(t.length>120) return t; } }catch(e){} }
   throw new Error('page');
 }
 async function fetchImageBlob(u){
@@ -919,7 +910,7 @@ async function loadLink(url){
       const meta={name:p.name,brand:p.brand,price:p.cur&&p.cur!==curCode()?'':p.price,cat:catFromText(p.name+' '+url),url,store:true};
       for(const i of [...sel].sort((a,b)=>a-b)){ try{ src.push({blob:await fetchImageBlob(p.imgs[i]),meta}); }catch(e){ console.warn(e); } }
       busy(false); if(!src.length){ toast('ما قدرت أحمّل الصور — جرّب «الصق صورة»'); return; }
-      closeSheet(); intake(src); };
+      closeSheet(); intake(src,{wish:S._linkWish}); };
   };
   draw();
 }
@@ -945,8 +936,10 @@ function itemSheet(it){
     <div style="display:grid;gap:10px;margin-top:8px">
       <button class="btn primary" id="iStyle">✨ نسّق عليها</button>
       <div class="row"><button class="btn" id="iLaundry">${it.laundry?'✓ طلعت من الغسيل':'🧺 بالغسيل'}</button><button class="btn" id="iEdit">${IC.edit} تعديل</button></div>
+      ${it.out?`<button class="btn" id="iBack">↩️ رجّعها للخزانة (${it.out==='sell'?'كانت للبيع':'كانت للتبرع'})</button>`:''}
       <button class="btn danger" id="iDel">${IC.trash} حذف القطعة</button>
     </div>`);
+  if($('iBack')) $('iBack').onclick=async()=>{ it.out=null; it.reviewed=Date.now(); await DB.put('items',it); S.results=[]; itemSheet(it); render(); };
   $('iFav').onclick=async()=>{ it.fav=!it.fav; await DB.put('items',it); itemSheet(it); render(); };
   $('iLaundry').onclick=async()=>{ it.laundry=!it.laundry; await DB.put('items',it); S.results=[]; itemSheet(it); render(); toast(it.laundry?'حطيتها بالغسيل — ما بقترحها لين ترجع':'رجعت للخزانة ✓'); };
   $('iEdit').onclick=()=>editItem([{...it,tags:[...(it.tags||[])],occs:[...(it.occs||[])],seasons:[...(it.seasons||['all'])]}],0,false);
@@ -965,7 +958,7 @@ async function editItem(list,i,isNew){
   const occSel=new Set(it.occs||[]);
   const sea=(it.seasons||['all'])[0];
   openSheet(`
-    <h2>${isNew?'قطعة جديدة':'تعديل القطعة'}</h2>
+    <h2>${it.wish?'🤍 أمنية جديدة':isNew?'قطعة جديدة':'تعديل القطعة'}</h2>
     <div class="preview"><img id="ePrev" src="${it.img}" class="${it.cut?'':'full'}" alt="">${list.length>1?`<span class="count">${i+1} / ${list.length}</span>`:''}</div>
     ${it._src?`<div class="imgtools">
       <div class="seg ${it._alpha?'':'hidden'}" id="eBg"><button class="${it.useCut!==false?'on':''}" data-v="1">✂️ بدون خلفية</button><button class="${it.useCut!==false?'':'on'}" data-v="0">🖼️ الأصلية</button></div>
@@ -1024,6 +1017,8 @@ async function editItem(list,i,isNew){
     it.price=$('ePrice').value.replace(/[^\d.]/g,''); it.tags=$('eTags').value.split(/[,،]/).map(s=>s.trim()).filter(Boolean);
     if(it._src){ it.src=it._src.toDataURL('image/jpeg',.85); it.mask=it._alpha?alphaToURL(it._alpha,it._src.width,it._src.height):null; }
     const rec={}; for(const k in it) if(k[0]!=='_') rec[k]=it[k];
+    if(rec.wish){ await DB.put('wish',rec); const k=S.wish.findIndex(x=>x.id===rec.id); if(k<0) S.wish.push(rec); else S.wish[k]=rec;
+      toast('انضافت للأمنيات 🤍'); if(isNew&&i<list.length-1) return next(); closeSheet(); return wishSheet(rec); }
     await DB.put('items',rec); const k=S.items.findIndex(x=>x.id===rec.id); if(k<0) S.items.push(rec); else S.items[k]=rec;
     S.results=[]; S.hero=null; render(); toast('انحفظت ✓'); next(); };
   if($('eSkip')) $('eSkip').onclick=next;
@@ -1076,6 +1071,7 @@ function renderStylist(){
       <div class="row" style="margin-bottom:10px">
         <button class="btn sq" id="oFav" style="color:${saved?'var(--hi)':'inherit'}" aria-label="حفظ">${saved?IC.heartF:IC.heart}</button>
         <button class="btn sq" id="oEdit" aria-label="تعديل">${IC.edit}</button>
+        <button class="btn sq" id="oShare" aria-label="شارك">📤</button>
         ${S.planDate?'':`<button class="btn sq" id="oPlan" aria-label="خطط">${IC.cal}</button>`}
         <button class="btn" id="oNext">${IC.shuffle} غيره</button>
       </div>
@@ -1087,6 +1083,7 @@ function renderStylist(){
     if(S.locks[c]===l.dataset.id) delete S.locks[c]; else { S.locks[c]=l.dataset.id;
       if(c==='full'){ delete S.locks.top; delete S.locks.bottom; } if(c==='top'||c==='bottom') delete S.locks.full; }
     renderStylist(); };
+  $('oShare').onclick=()=>shareOutfit(autoLayout(ps),ex.title.replace(/^\S+\s/,''));
   $('oNext').onclick=()=>{ if(S.idx<S.results.length-1) S.idx++; else { S.results=generate(); S.idx=0; } renderStylist(); };
   $('oFav').onclick=async()=>{ const ex=S.outfits.find(x=>x.key===o.key);
     if(ex){ S.outfits=S.outfits.filter(x=>x!==ex); await DB.del('outfits',ex.id); toast('انشال من المحفوظة'); }
@@ -1114,7 +1111,7 @@ function renderSaved(){
       ${list.map(o=>`<button class="oc" data-id="${o.id}">${boardHTML(layoutOf(o))}
         <div class="cap"><span>${o.name?esc(o.name):(OCC[o.occ]?OCC[o.occ].e+' '+OCC[o.occ].ar:'')}</span><span>${o.ids.length} قطع</span></div></button>`).join('')}
     </div>${list.length?'':'<p class="hint" style="text-align:center;margin-top:16px">احفظ أوتفتات من «نسّقلي» بزر ♡ أو ركّبها بنفسك.</p>'}`;
-  $('newO').onclick=()=>openBuilder({onSave:async(ids,layout)=>{ await saveOutfit(ids,layout); toast('انحفظ ♥'); }});
+  $('newO').onclick=()=>createOutfitSheet();
   $('sg').onclick=e=>{ const c=e.target.closest('.oc'); if(c) outfitSheet(S.outfits.find(o=>o.id===c.dataset.id)); };
 }
 function outfitSheet(o){
@@ -1125,8 +1122,10 @@ function outfitSheet(o){
     <div style="display:grid;gap:10px">
       <button class="btn primary" id="sWear">✓ بلبسه اليوم</button>
       <div class="row"><button class="btn" id="sPlan">${IC.cal} خطط ليوم</button><button class="btn" id="sEdit">${IC.edit} عدّل</button></div>
+      <button class="btn" id="sShare">📤 شارك كصورة</button>
       <button class="btn danger" id="sDel">${IC.trash} حذف</button></div>`,
     async()=>{ const n=$('oName')&&$('oName').value.trim(); if(n!==undefined&&n!==(o.name||'')){ o.name=n; await DB.put('outfits',o); render(); } });
+  $('sShare').onclick=()=>shareOutfit(lay,o.name||'خزانتي');
   $('sWear').onclick=async()=>{ await setPlan(today(),o.ids,o.layout,true); closeSheet(); toast('تمام ✓ سجلته بالتقويم'); render(); };
   $('sPlan').onclick=()=>pickDateSheet(addDays(today(),1),async d=>{ await setPlan(d,o.ids,o.layout,d<today()); toast(`انضاف لـ ${fmtDate(d)} 📅`); });
   $('sEdit').onclick=()=>{ closeSheet(); openBuilder({ids:o.ids,layout:lay,onSave:async(ids,layout)=>{
@@ -1253,6 +1252,241 @@ $('tCancel').onclick=()=>$('touch').classList.remove('on');
 $('tDone').onclick=()=>{ const it=TU.it; it._src=TU.src; it._alpha=TU.alpha; it.maskKind='manual'; $('touch').classList.remove('on'); TU.onDone&&TU.onDone(); };
 addEventListener('resize',()=>{ if($('touch').classList.contains('on')) tuFit(); });
 
+/* ================= extras: wishlist, closet review, category picker, basics library, sharing ================= */
+const QA_IC = {
+  wish:'<path d="M20.8 5.6a5.5 5.5 0 0 0-7.8 0L12 6.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 22l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/>',
+  review:'<path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3"/><path d="M18 3v4h-4M6 21v-4h4"/>',
+  stats:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  share:'<path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/>',
+  album:'<rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/>',
+  camera:'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.4"/>',
+  link:'<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+  paste:'<rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h6"/>',
+  library:'<path d="M4 9 12 4l8 5M5 9v9M9 9v9M15 9v9M19 9v9M3 20h18"/>',
+  grid:'<rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/>',
+  free:'<path d="M5 5h6v6H5zM13 13h6v6h-6z"/><path d="M14 5h5v5M10 19H5v-5" stroke-dasharray="2 2"/>',
+  spark:'<path d="M12 3l1.8 4.6L18.5 9l-4.7 1.6L12 15l-1.8-4.4L5.5 9l4.7-1.4z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/>',
+};
+const qi = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${QA_IC[k]}</svg>`;
+const isOut = it => !!it.out;
+
+function quickActionsHTML(){
+  const rev=reviewQueue().length;
+  return `<div class="qas" id="qas">
+    <button data-a="wish"><span class="c">${qi('wish')}${S.wish.length?`<span class="n">${S.wish.length}</span>`:''}</span>الأمنيات</button>
+    <button data-a="review"><span class="c">${qi('review')}${rev?`<span class="n">${rev}</span>`:''}</span>مراجعة الخزانة</button>
+    <button data-a="stats"><span class="c">${qi('stats')}</span>إحصائياتي</button>
+    <button data-a="share"><span class="c">${qi('share')}</span>شارك خزانتي</button></div>`;
+}
+function bindQuickActions(){
+  if(!$('qas')) return;
+  $('qas').onclick=e=>{ const b=e.target.closest('[data-a]'); if(!b) return;
+    ({wish:wishListSheet,review:()=>reviewSheet(0),stats:()=>go('stats'),share:shareCloset})[b.dataset.a](); };
+}
+
+/* ---- add sheet (grid) ---- */
+function addSheet(){
+  openSheet(`<h2>أضف قطعة</h2>
+    <div class="agrid">
+      <button id="aAlbum">${qi('album')}<b>الألبوم</b></button>
+      <button id="aCam">${qi('camera')}<b>الكاميرا</b></button>
+      <button id="aLink">${qi('link')}<b>رابط منتج</b></button>
+      <button id="aPaste">${qi('paste')}<b>الصق صورة</b></button>
+    </div>
+    <button class="arow" id="aLib"><span class="ai">${qi('library')}</span><span><b>مكتبة الأساسيات</b><small>تيشيرت أبيض، جينز، عباية… بضغطة وحدة بدون تصوير</small></span></button>
+    <button class="arow" id="aWish"><span class="ai">${qi('wish')}</span><span><b>أضف للأمنيات</b><small>ناوي تشتري شي؟ الصق رابطه وأقولك تستاهل ولا لا</small></span></button>`);
+  $('aAlbum').onclick=()=>{ closeSheet(); pickPhotos(); };
+  $('aCam').onclick=()=>{ closeSheet(); $('camIn').value=''; $('camIn').click(); };
+  $('aLink').onclick=()=>linkSheet('',false);
+  $('aPaste').onclick=pasteImage;
+  $('aLib').onclick=librarySheet;
+  $('aWish').onclick=()=>linkSheet('',true);
+}
+$('addBtn').onclick=addSheet;
+$('camIn').addEventListener('change',e=>{ const f=[...e.target.files]; if(f.length) intake(f.map(blob=>({blob}))); });
+
+/* ---- wishlist + "worth buying?" ---- */
+function worthOf(w){
+  const tmp={...w,wish:false,laundry:false,out:null};
+  S.items.push(tmp);
+  try{
+    const r=generate({locks:{[w.cat]:w.id},look:'all',n:40,occ:null,ignoreRecent:true}).filter(o=>o.pieces.some(p=>p.id===w.id));
+    const good=r.filter(o=>o.s>=6.8);
+    const partners=new Set(good.flatMap(o=>o.pieces.filter(p=>p.id!==w.id).map(p=>p.id)));
+    const fam=colorInfo(w.color).family;
+    const similar=S.items.filter(i=>i!==tmp&&i.cat===w.cat&&colorInfo(i.color).family===fam&&!isOut(i));
+    const looks=[...new Set(good.map(o=>o.look).filter(Boolean))];
+    const score=Math.min(100,Math.round(good.length*7+partners.size*2+looks.length*4-similar.length*12));
+    return {good,partners,similar,looks,score,top:good.slice(0,4)};
+  } finally { S.items=S.items.filter(i=>i!==tmp); }
+}
+function wishListSheet(){
+  const L=[...S.wish].sort((a,b)=>b.added-a.added);
+  openSheet(`<div class="sheethead"><h2>🤍 الأمنيات</h2><button class="btn" id="wAdd" style="padding:9px 14px">+ أضف</button></div>
+    <p class="hint" style="margin-top:-6px">قطع ناوي تشتريها — أحسب لك كم أوتفت تطلع منها مع ملابسك قبل لا تشتري.</p>
+    ${L.length?`<div class="grid" id="wGrid" style="margin-top:12px">${L.map(w=>`<button class="tile" data-id="${w.id}"><img src="${w.img}" class="${w.cut?'':'full'}" alt=""><span class="badges"><span>${worthOf(w).score}%</span></span></button>`).join('')}</div>`
+      :`<div class="empty" style="padding:26px 8px"><div class="big">🛍️</div><h3>ما فيه أمنيات</h3><p class="hint">لقيت شي عاجبك في متجر؟ انسخ رابطه وأضفه هنا.</p></div>`}`);
+  $('wAdd').onclick=()=>linkSheet('',true);
+  if($('wGrid')) $('wGrid').onclick=e=>{ const t=e.target.closest('[data-id]'); if(t) wishSheet(S.wish.find(w=>w.id===t.dataset.id)); };
+}
+function wishSheet(w){
+  busy(true,'أحسب كم أوتفت تطلع منها…');
+  setTimeout(()=>{
+    const a=worthOf(w); busy(false);
+    const verdict=a.score>=70?['👍 تستاهل','تركب مع قطع كثيرة عندك — بتلبسها كثير.']:a.score>=40?['🤔 مقبولة','تركب مع بعض قطعك — لو تحبها خذها.']:['✋ فكّر مرة ثانية','ما تركب مع خزانتك كثير'+(a.similar.length?' وعندك شي يشبهها.':'.')];
+    openSheet(`<div class="wishhead"><div class="preview" style="width:42%;aspect-ratio:3/4;margin:0"><img src="${w.img}" class="${w.cut?'':'full'}" alt=""></div>
+      <div class="tx"><h2 style="margin:0">${esc(itemName(w))}</h2><span class="hint">${esc([w.brand,w.price&&w.price+' '+S.set.cur].filter(Boolean).join(' · '))}</span>
+        <div class="worth"><b>${a.score}%</b><span>${verdict[0]}</span></div><p class="hint" style="margin:0">${verdict[1]}</p></div></div>
+      <div class="kv"><div><b>${a.good.length}</b><span>أوتفت حلو</span></div><div><b>${a.partners.size}</b><span>قطعة تركب معها</span></div><div><b>${a.similar.length}</b><span>عندك شبهها</span></div></div>
+      ${a.looks.length?`<div class="tags">${a.looks.slice(0,4).map(l=>`<span>${LOOK[l].e} ${LOOK[l].ar}</span>`).join('')}</div>`:''}
+      ${a.top.length?`<div class="lbl" style="margin-top:14px">كيف بتطلع مع ملابسك</div><div class="ogrid">${a.top.map(o=>`<div class="oc">${boardHTML(autoLayout(sortPieces(o.pieces.map(p=>p.id===w.id?w:p))),'')}</div>`).join('')}</div>`:''}
+      <div style="display:grid;gap:10px;margin-top:14px">
+        <button class="btn primary" id="wBuy">🛍️ اشتريتها — انقلها للخزانة</button>
+        <div class="row">${w.url?`<a class="btn" href="${esc(w.url)}" target="_blank" rel="noopener">🔗 المتجر</a>`:''}<button class="btn danger" id="wDel">${IC.trash} احذف</button></div></div>`);
+    // boards above reference the wish item by id: make it resolvable while the sheet is open
+    $('wBuy').onclick=async()=>{ const it={...w,wish:false,added:Date.now()}; await DB.del('wish',w.id); S.wish=S.wish.filter(x=>x!==w);
+      await DB.put('items',it); S.items.push(it); S.results=[]; S.hero=null; closeSheet(); render(); toast('مبروك 🛍️ صارت في خزانتك'); };
+    $('wDel').onclick=async()=>{ await DB.del('wish',w.id); S.wish=S.wish.filter(x=>x!==w); closeSheet(); toast('انحذفت'); };
+  },40);
+}
+
+/* ---- closet review ---- */
+function reviewQueue(){
+  return S.items.filter(i=>!isOut(i)&&!i.laundry&&daysSince(i.reviewed)>60&&((!i.wears&&daysSince(i.added)>=14)||(i.wears&&daysSince(i.lastWorn)>60)))
+    .sort((a,b)=>(a.lastWorn||a.added)-(b.lastWorn||b.added));
+}
+function reviewSheet(i){
+  const q=reviewQueue(), outs=S.items.filter(isOut);
+  if(!q.length){
+    openSheet(`<h2>🔄 مراجعة الخزانة</h2>
+      <div class="empty" style="padding:20px 8px"><div class="big">✨</div><h3>خزانتك مرتبة</h3><p class="hint">ما فيه قطع منسية تحتاج قرار الحين.</p></div>
+      ${outs.length?`<div class="lbl">قطع قررت تطلّعها (${outs.length})</div><div class="grid" id="rvOut">${outs.map(o=>`<button class="tile" data-id="${o.id}"><img src="${o.img}" class="${o.cut?'':'full'}" alt=""><span class="badges"><span>${o.out==='sell'?'💰':'🎁'}</span></span></button>`).join('')}</div>
+        <button class="btn danger block" id="rvClear" style="margin-top:12px">${IC.trash} شيلها من الخزانة نهائياً</button>`:''}`);
+    if($('rvOut')) $('rvOut').onclick=e=>{ const t=e.target.closest('[data-id]'); if(t) itemSheet(byId(t.dataset.id)); };
+    if($('rvClear')) $('rvClear').onclick=async()=>{ if(!confirm(`تحذف ${outs.length} قطعة؟`)) return;
+      for(const o of outs){ await DB.del('items',o.id); } S.items=S.items.filter(x=>!isOut(x)); S.results=[]; S.hero=null; closeSheet(); render(); toast('تم ✓'); };
+    return;
+  }
+  const it=q[0];
+  openSheet(`<div class="sheethead"><h2>🔄 مراجعة الخزانة</h2><span class="hint">${q.length} باقي</span></div>
+    <div class="preview" style="aspect-ratio:4/5"><img src="${it.img}" class="${it.cut?'':'full'}" alt=""></div>
+    <h3 style="text-align:center;font-size:19px">${esc(itemName(it))}</h3>
+    <p class="hint" style="text-align:center;margin:4px 0 16px">${it.wears?`آخر مرة لبستها قبل ${daysSince(it.lastWorn)} يوم`:`ما لبستها من يوم أضفتها (${daysSince(it.added)} يوم)`}</p>
+    <div class="rvbtns"><button data-r="keep">💛<b>أبيها</b></button><button data-r="donate">🎁<b>أتبرع</b></button><button data-r="sell">💰<b>أبيعها</b></button></div>
+    <button class="btn block" id="rvStyle" style="margin-top:10px">✨ نسّق عليها قبل لا أقرر</button>`);
+  $('sheetBody').querySelector('.rvbtns').onclick=async e=>{ const b=e.target.closest('[data-r]'); if(!b) return;
+    if(b.dataset.r==='keep') it.reviewed=Date.now(); else it.out=b.dataset.r;
+    await DB.put('items',it); S.results=[]; S.hero=null; reviewSheet(); };
+  $('rvStyle').onclick=()=>{ it.reviewed=Date.now(); DB.put('items',it); closeSheet(); S.locks={[it.cat]:it.id}; S.results=[]; S.oTab='style'; go('outfits'); };
+}
+
+/* ---- create outfit: chooser + pick by category ---- */
+function createOutfitSheet(onSave){
+  onSave=onSave||(async(ids,layout)=>{ await saveOutfit(ids,layout); toast('انحفظ ♥'); });
+  openSheet(`<h2>كيف تبي تسوي الأوتفت؟</h2><div class="cgrid">
+    <button id="cFree">${qi('free')}<b>ركّب بحرية</b><small>اسحب وكبّر ورتّب</small></button>
+    <button id="cCat">${qi('grid')}<b>حسب الفئة</b><small>اختر قطعة من كل صف</small></button>
+    <button id="cAI" class="wide">${qi('spark')}<b>اقتراحات ذكية</b><small>خلني أنسّق لك على ستايلات التريند</small></button></div>`);
+  $('cFree').onclick=()=>{ closeSheet(); openBuilder({onSave}); };
+  $('cCat').onclick=()=>catPicker(onSave);
+  $('cAI').onclick=()=>{ closeSheet(); S.locks={}; S.results=[]; S.oTab='style'; go('outfits'); };
+}
+function catPicker(onSave){
+  const pool=c=>S.items.filter(i=>i.cat===c&&!isOut(i));
+  const sel={}; ['top','bottom','shoes'].forEach(c=>{ const p=pool(c)[0]; if(p) sel[c]=p.id; }); if(!sel.top&&pool('full')[0]) sel.full=pool('full')[0].id;
+  const cats=ORDER.filter(c=>pool(c).length);
+  const prev=()=>{ const ps=Object.values(sel).map(byId).filter(Boolean); $('cpPrev').innerHTML=boardHTML(autoLayout(sortPieces(ps))); };
+  openSheet(`<h2>حسب الفئة</h2><div id="cpPrev" class="cpprev"></div>
+    ${cats.map(c=>`<div class="lbl" style="margin-top:12px">${CAT[c].e} ${CAT[c].ar}</div>
+      <div class="cprow" data-cat="${c}"><button class="none ${sel[c]?'':'on'}" data-id="">بدون</button>${pool(c).map(i=>`<button class="${sel[c]===i.id?'on':''}" data-id="${i.id}"><img src="${i.img}" alt=""></button>`).join('')}</div>`).join('')}
+    <button class="btn primary block" id="cpSave" style="margin-top:16px">احفظ الأوتفت</button>`);
+  prev();
+  $('sheetBody').querySelectorAll('.cprow').forEach(row=>row.onclick=e=>{ const b=e.target.closest('button'); if(!b) return; const c=row.dataset.cat;
+    if(b.dataset.id) sel[c]=b.dataset.id; else delete sel[c];
+    if(c==='full'&&sel.full){ delete sel.top; delete sel.bottom; } if((c==='top'||c==='bottom')&&sel[c]) delete sel.full;
+    $('sheetBody').querySelectorAll('.cprow').forEach(r=>{ const cc=r.dataset.cat; r.querySelectorAll('button').forEach(x=>x.classList.toggle('on',(x.dataset.id||'')===(sel[cc]||''))); });
+    prev(); });
+  $('cpSave').onclick=async()=>{ const ids=Object.values(sel).filter(byId); if(ids.length<2){ toast('اختر قطعتين على الأقل'); return; }
+    await onSave(ids,autoLayout(sortPieces(ids.map(byId)))); closeSheet(); render(); };
+}
+
+/* ---- basics library: one-tap illustrated items ---- */
+const BASICS = [
+  {cat:'top',ar:'تيشيرت',st:'casual',f:'M8 4 4 6.5 5.5 10 7 9.4V20h10V9.4l1.5.6L20 6.5 16 4c-.6 1.4-2.1 2.3-4 2.3S8.6 5.4 8 4z'},
+  {cat:'top',ar:'قميص',st:'smart',f:'M8.5 3.5 4 6l1.5 4.5 1.5-.6V21h10V9.9l1.5.6L20 6l-4.5-2.5L12 6z',l:'M12 6v15M8.5 3.5 12 6l3.5-2.5'},
+  {cat:'top',ar:'هودي',st:'street',fit:'loose',f:'M8 5 3.5 7.5l1 7 2.5-.5V21h10v-7l2.5.5 1-7L16 5c-.5-1.8-2-3-4-3S8.5 3.2 8 5z',l:'M9 5.5c.8 1.5 1.8 2.3 3 2.3s2.2-.8 3-2.3'},
+  {cat:'top',ar:'بلوزة',st:'smart',f:'M9 3.5 5 6l1 4h1.5L6.5 21h11L16.5 10H18l1-4-4-2.5c-.5 1-1.6 1.6-3 1.6S9.5 4.5 9 3.5z'},
+  {cat:'bottom',ar:'بنطلون',st:'smart',f:'M7 3h10l1 18h-4.5L12 9.5 10.5 21H6z'},
+  {cat:'bottom',ar:'جينز',st:'casual',col:'#4A6A8F',f:'M7 3h10l1.2 18h-4.6L12 9.5 10.4 21H5.8z',l:'M7 6h10M12 3v3'},
+  {cat:'bottom',ar:'تنورة',st:'smart',f:'M7.5 4h9l3 16h-15z'},
+  {cat:'bottom',ar:'شورت',st:'casual',f:'M6.5 6h11l1 9h-5L12 11l-1.5 4h-5z'},
+  {cat:'full',ar:'فستان',st:'evening',f:'M9.5 3h5l-.8 4 4.3 13H6l4.3-13z'},
+  {cat:'full',ar:'عباية',st:'trad',col:'#111111',f:'M9 2.5h6l1 4 3.5 15h-15L8 6.5z',l:'M12 4v17'},
+  {cat:'full',ar:'ثوب',st:'trad',col:'#F5F5F2',f:'M9 3h6l1.5 3L20 9l-1.5 2.5-2-1V21h-9V10.5l-2 1L4 9l3.5-3z',l:'M12 3.5v6'},
+  {cat:'outer',ar:'جاكيت',st:'casual',f:'M8 3.5 4 6v14h16V6l-4-2.5L12 8z',l:'M12 8v12'},
+  {cat:'outer',ar:'بليزر',st:'classic',f:'M8 3.5 4 6v15h16V6l-4-2.5-2 3L12 13l-2-6.5z',l:'M12 13v8M8 3.5l2 3M16 3.5l-2 3'},
+  {cat:'shoes',ar:'سنيكرز',st:'casual',col:'#F5F5F2',f:'M3 16.5V9l4.5 1.5L11 13l6 1.5c2.2.5 4 1.6 4 3.5H3z',l:'M3 16.5h18'},
+  {cat:'shoes',ar:'كعب',st:'evening',f:'M4 18 6 10c3 0 6 3 9 5l5 1v2h-4l-2-2-6 2z'},
+  {cat:'bag',ar:'شنطة',st:'casual',f:'M5 9h14l-1 11H6z',l:'M9 9V7a3 3 0 0 1 6 0v2'},
+];
+function basicImage(b,hex){
+  const S2=600, k=S2/24, t=mkCanvas(S2,S2), x=t.getContext('2d'); x.scale(k,k);
+  const rgb=hexToRgb(hex), dark=rgbToHex(...rgb.map(v=>v*.62)), p=new Path2D(b.f);
+  x.fillStyle=hex; x.fill(p); x.lineJoin='round'; x.lineCap='round'; x.strokeStyle=dark; x.lineWidth=.32; x.stroke(p);
+  if(b.l){ x.lineWidth=.28; x.stroke(new Path2D(b.l)); }
+  const d=ctx2d(t).getImageData(0,0,S2,S2).data, a=new Uint8ClampedArray(S2*S2); for(let i=0;i<a.length;i++) a[i]=d[i*4+3];
+  const src=mkCanvas(S2,S2), sx=src.getContext('2d'); sx.fillStyle='#fff'; sx.fillRect(0,0,S2,S2); sx.drawImage(t,0,0);
+  return {src,alpha:a};
+}
+function librarySheet(){
+  let bi=0, col='#F5F5F2';
+  const draw=()=>{ const b=BASICS[bi], c=b.col&&col==='#F5F5F2'&&!draw.touched?b.col:col;
+    $('sheetBody').querySelector('#lbPrev').innerHTML=`<img src="${(()=>{ const {src,alpha}=basicImage(b,c); return compose(src,alpha,{auto:false}).img; })()}" alt="">`;
+    $('sheetBody').querySelectorAll('#lbList button').forEach((x,i)=>x.classList.toggle('on',i===bi));
+    $('sheetBody').querySelectorAll('#lbCol .sw').forEach(x=>x.classList.toggle('on',x.dataset.v===c)); draw.cur=c; };
+  openSheet(`<h2>📚 مكتبة الأساسيات</h2><p class="hint" style="margin-top:-6px">ما عندك صورة؟ اختر النوع واللون وتنضاف على طول.</p>
+    <div class="preview" id="lbPrev" style="aspect-ratio:1.3;margin-top:10px"></div>
+    <div class="wrapchips" id="lbList">${BASICS.map((b,i)=>`<button class="chip" data-i="${i}">${b.ar}</button>`).join('')}</div>
+    <div class="swatches" id="lbCol" style="margin-top:14px">${PALETTE.map(p=>`<button class="sw" data-v="${p[0]}" style="background:${p[0]}" aria-label="${p[1]}"></button>`).join('')}</div>
+    <button class="btn primary block" id="lbAdd" style="margin-top:16px">أضف للخزانة</button>`);
+  $('lbList').onclick=e=>{ const b=e.target.closest('[data-i]'); if(!b) return; bi=+b.dataset.i; draw.touched=false; col='#F5F5F2'; draw(); };
+  $('lbCol').onclick=e=>{ const b=e.target.closest('[data-v]'); if(!b) return; col=b.dataset.v; draw.touched=true; draw(); };
+  $('lbAdd').onclick=()=>{ const b=BASICS[bi], c=draw.cur, {src,alpha}=basicImage(b,c);
+    const it={id:uid(),_src:src,_alpha:alpha,_colorAuto:false,maskKind:'basic',enh:false,bright:0,useCut:true,cat:b.cat,style:b.st,fit:b.fit,
+      name:`${b.ar} ${colorInfo(c).name}`,brand:'',price:'',size:'',tags:[],seasons:['all'],occs:[],fav:false,laundry:false,wears:0,lastWorn:0,added:Date.now(),basic:true};
+    recompose(it); it.color=c; it.color2=null; editItem([it],0,true); };
+  draw();
+}
+
+/* ---- share as image ---- */
+async function layoutPNG(layout,label){
+  const W=900,H=1200,c=mkCanvas(W,H),x=c.getContext('2d'); x.fillStyle='#F3F3F3'; x.fillRect(0,0,W,H);
+  for(const l of [...layout].sort((a,b)=>a.z-b.z)){ const it=byId(l.id)||S.wish.find(w=>w.id===l.id); if(!it) continue;
+    const im=await loadImg(it.img), w=l.w*W, h=w*im.naturalHeight/im.naturalWidth;
+    x.globalCompositeOperation=it.cut?'source-over':'multiply'; x.drawImage(im,l.x*W,l.y*H,w,h); }
+  x.globalCompositeOperation='source-over'; x.fillStyle='#8A8A8A'; x.font="600 26px Alex, sans-serif"; x.textAlign='center'; x.direction='rtl';
+  x.fillText(label||'خزانتي',W/2,H-36);
+  return new Promise(r=>c.toBlob(r,'image/png'));
+}
+async function shareBlob(blob,name){
+  const f=new File([blob],name,{type:blob.type});
+  if(navigator.canShare&&navigator.canShare({files:[f]})){ try{ await navigator.share({files:[f]}); return; }catch(e){ if(e.name==='AbortError') return; } }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(f); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+}
+async function shareOutfit(layout,label){ busy(true,'أجهّز الصورة…'); try{ await shareBlob(await layoutPNG(layout,label),'outfit.png'); } finally{ busy(false); } }
+async function shareCloset(){
+  const its=S.items.filter(i=>!isOut(i)).sort((a,b)=>b.added-a.added).slice(0,12); if(!its.length){ toast('أضف قطع أول'); return; }
+  busy(true,'أجهّز صورة خزانتك…');
+  try{ const W=900,cols=3,cell=W/cols,H=Math.ceil(its.length/cols)*cell*1.2+110,c=mkCanvas(W,H),x=c.getContext('2d');
+    x.fillStyle='#F3F3F3'; x.fillRect(0,0,W,H); x.fillStyle='#1B1B1B'; x.font="800 40px Alex, sans-serif"; x.textAlign='center'; x.direction='rtl';
+    x.fillText(`${S.set.name||'خزانتي'} · ${S.items.length} قطعة`,W/2,64);
+    for(let i=0;i<its.length;i++){ const it=its[i], im=await loadImg(it.img), cx=(cols-1-i%cols)*cell, cy=90+Math.floor(i/cols)*cell*1.2;
+      x.fillStyle='#fff'; x.beginPath(); x.roundRect?x.roundRect(cx+10,cy+10,cell-20,cell*1.2-20,26):x.rect(cx+10,cy+10,cell-20,cell*1.2-20); x.fill();
+      const k=Math.min((cell-60)/im.naturalWidth,(cell*1.2-60)/im.naturalHeight), w=im.naturalWidth*k, h=im.naturalHeight*k;
+      x.globalCompositeOperation=it.cut?'source-over':'multiply'; x.drawImage(im,cx+(cell-w)/2,cy+(cell*1.2-h)/2,w,h); x.globalCompositeOperation='source-over'; }
+    await shareBlob(await new Promise(r=>c.toBlob(r,'image/png')),'closet.png');
+  } finally{ busy(false); }
+}
 /* ---------------- calendar & trips ---------------- */
 function renderPlan(){
   const v=$('v-plan');
@@ -1446,11 +1680,11 @@ $('settingsBtn').onclick=()=>{
   $('bExp').onclick=exportData;
   $('bImp').onclick=()=>{ $('importIn').value=''; $('importIn').click(); };
   $('bWipe').onclick=async()=>{ if(!confirm('بتنمسح كل القطع والأوتفتات والتقويم. متأكد؟')) return;
-    for(const s of ['items','outfits','plans','trips']) await DB.clear(s);
-    Object.assign(S,{items:[],outfits:[],plans:{},trips:[],results:[],locks:{}}); closeSheet(); render(); toast('انمسح كل شي'); };
+    for(const s of ['items','wish','outfits','plans','trips']) await DB.clear(s);
+    Object.assign(S,{wish:[],items:[],outfits:[],plans:{},trips:[],results:[],locks:{}}); closeSheet(); render(); toast('انمسح كل شي'); };
 };
 async function exportData(){
-  const data=JSON.stringify({app:'khzanti',v:2,items:S.items,outfits:S.outfits,plans:Object.values(S.plans),trips:S.trips,settings:S.set});
+  const data=JSON.stringify({app:'khzanti',v:2,items:S.items,wish:S.wish,outfits:S.outfits,plans:Object.values(S.plans),trips:S.trips,settings:S.set});
   const file=new File([data],`khzanti-${today()}.json`,{type:'application/json'});
   if(navigator.canShare&&navigator.canShare({files:[file]})){ try{ await navigator.share({files:[file],title:'نسخة خزانتي'}); return; }catch(e){ if(e.name==='AbortError') return; } }
   const a=document.createElement('a'); a.href=URL.createObjectURL(file); a.download=file.name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),4000);
@@ -1459,6 +1693,7 @@ $('importIn').addEventListener('change',async e=>{
   const f=e.target.files[0]; if(!f) return;
   try{ busy(true,'أسترجع النسخة…'); const d=JSON.parse(await f.text()); if(d.app!=='khzanti') throw 0;
     await DB.putMany('items',d.items||[]); await DB.putMany('outfits',d.outfits||[]);
+    if(d.wish) await DB.putMany('wish',d.wish);
     if(d.plans) await DB.putMany('plans',d.plans); if(d.trips) await DB.putMany('trips',d.trips);
     if(d.settings){ S.set={...S.set,...d.settings}; await saveSet(); }
     await load(); busy(false); closeSheet(); render(); toast(`رجعت ${(d.items||[]).length} قطعة ✓`);
@@ -1471,6 +1706,7 @@ async function load(){
   S.outfits=(await DB.all('outfits')).map(o=>({created:o.date||Date.now(),key:[...o.ids].sort().join('|'),...o}));
   S.plans={}; (await DB.all('plans')).forEach(p=>S.plans[p.date]=p);
   S.trips=await DB.all('trips');
+  S.wish=await DB.all('wish');
   S.set={...S.set,...((await DB.get('kv','settings'))||{})};
   S.wxInfo=(await DB.get('kv','wx'))||null;
   // migrate v1: "worn" outfits become calendar entries
