@@ -47,7 +47,7 @@
 
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{margin:0;font-family:var(--font-body);font-size:17px;line-height:1.75;color:var(--fg);
+body{margin:0;font-family:var(--font-body);font-size:16px;line-height:1.7;color:var(--fg);
   background:color-mix(in srgb,var(--a1) 6%,var(--bg));-webkit-font-smoothing:antialiased}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:60;
   background:color-mix(in srgb,var(--a1) 6%,var(--bg))}
@@ -97,16 +97,16 @@ ul,ol{padding:0;list-style:none}
 .btn.is-off:hover{transform:none}
 
 /* hero */
-.hero{padding-block:clamp(36px,7vw,92px) clamp(32px,5vw,64px)}
+.hero{padding-block:clamp(32px,5vw,64px) clamp(28px,4vw,52px)}
 .hero .wrap{display:grid;grid-template-columns:1.02fr .98fr;gap:clamp(28px,5vw,64px);align-items:center}
 .hero .wrap>*{min-width:0}
 .eyebrow{display:inline-flex;align-items:center;gap:9px;padding:7px 16px;border-radius:999px;
   font-size:.9rem;font-weight:700;color:var(--fg);border:1px solid color-mix(in srgb,var(--a1) 45%,var(--line));
   background:color-mix(in srgb,var(--a1) 13%,transparent)}
 .eyebrow::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--a1);box-shadow:0 0 10px var(--a1)}
-h1{font-family:var(--font-display);font-weight:700;font-size:clamp(2.7rem,6.6vw,5rem);line-height:1.1;letter-spacing:-.015em;margin:16px 0 18px;text-wrap:balance}
+h1{font-family:var(--font-display);font-weight:700;font-size:clamp(2.4rem,4.6vw,3.6rem);line-height:1.12;letter-spacing:-.015em;margin:14px 0 16px;text-wrap:balance}
 .hl{background:linear-gradient(90deg,var(--a1),var(--a2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;padding-inline:.05em}
-.lead{font-size:1.15rem;color:var(--muted);max-width:34em}
+.lead{font-size:1.06rem;color:var(--muted);max-width:34em}
 .cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
 .meta{margin-top:16px;font-size:.9rem;color:var(--muted)}
 
@@ -141,10 +141,10 @@ h1{font-family:var(--font-display);font-weight:700;font-size:clamp(2.7rem,6.6vw,
 .seg button[aria-pressed="true"]{background:var(--a1);color:var(--on-a)}
 
 /* sections */
-.sec{padding-block:clamp(48px,7vw,92px);scroll-margin-top:72px}
+.sec{padding-block:clamp(40px,5.5vw,72px);scroll-margin-top:72px}
 .sec.alt{background:color-mix(in srgb,var(--a1) 9%,var(--bg2))}
 .sec-h{max-width:640px;margin-bottom:34px}
-h2{font-family:var(--font-display);font-weight:700;font-size:clamp(2rem,4.3vw,3.1rem);line-height:1.18;letter-spacing:-.012em;margin-bottom:10px;text-wrap:balance}
+h2{font-family:var(--font-display);font-weight:700;font-size:clamp(1.8rem,3.2vw,2.5rem);line-height:1.18;letter-spacing:-.012em;margin-bottom:10px;text-wrap:balance}
 .sec-h p{color:var(--muted)}
 .kicker{font-size:.85rem;font-weight:600;letter-spacing:.04em;color:var(--muted);margin-bottom:14px}
 .strip{padding-block:6px 20px}
@@ -237,21 +237,40 @@ tbody th{font-weight:500;color:var(--muted);width:17%}
   .shots{grid-template-columns:1fr}
 }
 @media (max-width:700px){
-  body{font-size:16px}
+  body{font-size:15.5px;line-height:1.62}
+  .brand{font-size:1.25rem}
+  .hero{padding-block:22px 30px}
+  .eyebrow{font-size:.78rem;padding:5px 12px;gap:7px}
+  h1{font-size:1.95rem;line-height:1.16;margin:12px 0 12px}
+  .lead{font-size:1rem;line-height:1.6;max-width:none}
+  .cta{margin-top:18px!important;gap:10px!important}
+  .btn{padding:12px 18px;font-size:.98rem;border-radius:12px}
+  .meta{margin-top:12px;font-size:.84rem}
+  .scene{padding:8px;border-radius:20px}
   .scene-screen{aspect-ratio:4/3}
   .menu{top:9%;gap:6px;width:52%}
   .menu li{padding:6px 12px}
+  .sec{padding-block:38px;scroll-margin-top:64px}
+  h2{font-size:1.65rem;line-height:1.2}
+  .kicker{margin-bottom:10px}
+  .card{padding:20px;border-radius:18px}
+  .card h3{font-size:1.1rem;margin:12px 0 6px}
+  .steps li{padding:18px}
+  .steps li::before{font-size:1.8rem}
   table{min-width:0}
   th,td{padding:12px 10px;font-size:.88rem}
   tbody th{width:20%}
+  .verify{padding:20px;border-radius:18px}
   .grid2{grid-template-columns:1fr}
-  .dl{grid-template-columns:1fr}
+  .dl{grid-template-columns:1fr;padding:22px;border-radius:22px}
   .dl img{width:96px}
+  .faq summary{font-size:1rem;padding:15px 4px}
   .top .pal{display:none}
 }
 @media (max-width:480px){
   .strip ul{grid-template-columns:1fr}
   .btn{width:100%}
+  h1{font-size:1.8rem}
 }
 @media (min-width:701px){.mob-pal-row{display:none}}
 @media (prefers-reduced-motion:reduce){
@@ -513,7 +532,7 @@ ar: {
  'tool.theme':'تبديل الوضع الداكن والفاتح','tool.pal':'ألوان الصفحة',
  'pal.violet':'بنفسجي','pal.blue':'أزرق','pal.pink':'وردي','pal.emerald':'زمردي','pal.rose':'توتي','pal.amber':'كهرماني',
  'hero.eyebrow':'تعريب الألعاب لويندوز',
- 'hero.title':'ألعابك تتكلم <span class="hl">عربي</span>.',
+ 'hero.title':'ألعابك <span class="hl">بالعربي</span>.',
  'hero.sub':'{name} يترجم نصوص الألعاب إلى العربية على جهازك، بدون مفاتيح API وبدون ما يلمس حمايات اللعبة.',
  'hero.cta1':'حمّل لويندوز','hero.cta1.soon':'التحميل يفتح قريباً','hero.cta2':'شوف كيف يعمل',
  'hero.meta':'نسخة تجريبية · ويندوز 10 و11',
@@ -582,7 +601,7 @@ en: {
  'tool.theme':'Toggle dark and light mode','tool.pal':'Page colors',
  'pal.violet':'Violet','pal.blue':'Blue','pal.pink':'Pink','pal.emerald':'Emerald','pal.rose':'Rose','pal.amber':'Amber',
  'hero.eyebrow':'Game localization for Windows',
- 'hero.title':'Your games, <span class="hl">in Arabic</span>.',
+ 'hero.title':'Your games <span class="hl">in Arabic</span>.',
  'hero.sub':'{name} translates game text into Arabic on your own PC, with no API keys and without touching game protections.',
  'hero.cta1':'Download for Windows','hero.cta1.soon':'Download opens soon','hero.cta2':'See how it works',
  'hero.meta':'Early preview · Windows 10 and 11',
