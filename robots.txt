@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://dubli.pages.dev/sitemap.xml
