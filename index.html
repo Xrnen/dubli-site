@@ -562,6 +562,7 @@ ar: {
  'tool.theme':'تبديل الوضع الداكن والفاتح','tool.pal':'ألوان الصفحة',
  'pal.violet':'بنفسجي','pal.blue':'أزرق','pal.pink':'وردي','pal.emerald':'زمردي','pal.rose':'توتي','pal.amber':'كهرماني',
  'hero.eyebrow':'تعريب الألعاب لويندوز',
+ 'doc.title':'دوبلي — تعريب الألعاب وترجمتها للعربية على ويندوز',
  'hero.title':'ألعابك <span class="hl">بالعربي</span>.',
  'hero.sub':'{name} يترجم نصوص الألعاب إلى العربية على جهازك، بدون مفاتيح API وبدون ما يلمس حمايات اللعبة.',
  'hero.cta1':'حمّل لويندوز','hero.cta1.soon':'التحميل يفتح قريباً','hero.cta2':'شوف كيف يعمل',
@@ -631,6 +632,7 @@ en: {
  'tool.theme':'Toggle dark and light mode','tool.pal':'Page colors',
  'pal.violet':'Violet','pal.blue':'Blue','pal.pink':'Pink','pal.emerald':'Emerald','pal.rose':'Rose','pal.amber':'Amber',
  'hero.eyebrow':'Game localization for Windows',
+ 'doc.title':'Dubli — Arabic game translation for Windows',
  'hero.title':'Your games <span class="hl">in Arabic</span>.',
  'hero.sub':'{name} translates game text into Arabic on your own PC, with no API keys and without touching game protections.',
  'hero.cta1':'Download for Windows','hero.cta1.soon':'Download opens soon','hero.cta2':'See how it works',
@@ -748,7 +750,7 @@ en: {
     all('[data-i18n-aria]').forEach(function(el){ var v = t(el.getAttribute('data-i18n-aria')); el.setAttribute('aria-label', v); el.setAttribute('title', v); });
     all('[data-i18n-alt]').forEach(function(el){ el.setAttribute('alt', t(el.getAttribute('data-i18n-alt'))); });
     $('brandName').textContent = name();
-    document.title = name();
+    document.title = t('doc.title');
     $('langBtn').textContent = lang === 'ar' ? 'EN' : 'عربي';
     $('langBtn').lang = lang === 'ar' ? 'en' : 'ar';
     $('langBtn').setAttribute('aria-label', lang === 'ar' ? 'English' : 'العربية');
