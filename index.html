@@ -205,6 +205,7 @@ h2{font-family:var(--font-display);font-weight:700;font-size:clamp(1.8rem,3.2vw,
 .shots{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
 .shots figure{border:1px solid var(--line);border-radius:20px;padding:10px;background:color-mix(in srgb,var(--card) 92%,transparent);box-shadow:var(--shadow);min-width:0}
 .shots img{border-radius:12px;width:100%;height:auto}
+.shots .wide{grid-column:1/-1}
 .shots figcaption{color:var(--muted);font-size:.92rem;padding:12px 6px 4px}
 
 .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;counter-reset:s;margin-bottom:34px}
@@ -445,6 +446,7 @@ tbody th{font-weight:500;color:var(--muted);width:17%}
     <div class="wrap">
       <div class="sec-h"><h2 data-i18n="look.title"></h2><p data-i18n="look.sub"></p></div>
       <div class="shots">
+        <figure class="wide"><img src="shots/library.jpg" width="1120" height="723" loading="lazy" data-i18n-alt="look.a3"><figcaption data-i18n="look.c3"></figcaption></figure>
         <figure><img src="shots/themes.jpg" width="1120" height="723" loading="lazy" data-i18n-alt="look.a1"><figcaption data-i18n="look.c1"></figcaption></figure>
         <figure><img src="shots/live.jpg" width="1120" height="723" loading="lazy" data-i18n-alt="look.a2"><figcaption data-i18n="look.c2"></figcaption></figure>
       </div>
@@ -598,8 +600,8 @@ ar: {
  'feat.later':'قيد البناء: مكتبتك الشخصية ومحتوى المكتبة الجاهزة. تسجيل الدخول بالديسكورد يشتغل الآن. التسعير والاشتراكات ما تحدّدت بعد.',
  'look.title':'لمحة من داخل البرنامج','look.sub':'لقطات حقيقية من {name} على ويندوز.',
  'look.a1':'لقطة حقيقية لصفحة الإعدادات ولوحة الألوان في دوبلي','look.a2':'لقطة حقيقية لمساحة الترجمة الحية في دوبلي',
- 'look.c1':'الإعدادات ولوحة الألوان الدافئة، مع تبديل الحساب.','look.c2':'مساحة الترجمة الحية: اختيار نافذة اللعبة وطريقة الالتقاط.',
- 'look.note':'هذي لقطات فعلية من البرنامج، صوّرناها بأنفسنا — مو صور ألعاب ولا أغلفة.',
+ 'look.c1':'الإعدادات ولوحة الألوان: ثيمات غنية، والأبيض والأسود هو الافتراضي.','look.a3':'لقطة حقيقية للمكتبة الرسمية في دوبلي','look.c3':'المكتبة الرسمية: تعريبات جاهزة تركّبها بضغطة زر.','look.c2':'مساحة الترجمة الحية: اختيار نافذة اللعبة وطريقة الالتقاط.',
+ 'look.note':'هذي لقطات فعلية من البرنامج صوّرناها بأنفسنا. أغلفة الألعاب ملك أصحابها.',
  'how.title':'كيف يعمل','how.sub':'طريقتان لترجمة اللعبة، ولكل وحدة حدودها.',
  's1.t':'اختر نافذة اللعبة','s1.d':'يشتغل مع وضع النافذة أو Borderless. ملء الشاشة الحصري يمنع التقاط الصورة.',
  's2.t':'يقرأ ويترجم','s2.d':'قراءة محلية للنص، ثم ترجمة بدون إنترنت مع قاموس لمصطلحات الألعاب وتصحيحاتك.',
@@ -669,8 +671,8 @@ en: {
  'feat.later':'Being built: your personal library and ready-made library content. Discord sign-in already works. Pricing and subscriptions are not decided yet.',
  'look.title':'A look inside','look.sub':'Real screenshots of {name} on Windows.',
  'look.a1':'Real screenshot of the Settings page and color palette in Dubli','look.a2':'Real screenshot of the live translation workspace in Dubli',
- 'look.c1':'Settings and the warm color palette, with account switching.','look.c2':'Live translation workspace: picking the game window and capture method.',
- 'look.note':'These are real screenshots of the app, captured by us — not game screenshots or cover art.',
+ 'look.c1':'Settings and the color palette: rich themes, black & white by default.','look.a3':'Real screenshot of the official library in Dubli','look.c3':'The official library: ready-made translations you install in one click.','look.c2':'Live translation workspace: picking the game window and capture method.',
+ 'look.note':'These are real screenshots of the app, captured by us. Game covers belong to their owners.',
  'how.title':'How it works','how.sub':'Two ways to translate a game, each with its own limits.',
  's1.t':'Pick the game window','s1.d':'Works with windowed or borderless mode. Exclusive fullscreen blocks screen capture.',
  's2.t':'Reads and translates','s2.d':'Local text recognition, then offline translation with a game-terms glossary and your own corrections.',
