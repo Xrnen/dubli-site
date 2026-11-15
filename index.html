@@ -37,6 +37,11 @@
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
 }
 </script>
+<script>/* before first paint: the saved colours and language, so the page never flashes the default look */
+(function(){try{var d=document.documentElement,g=function(k){return localStorage.getItem(k)};
+d.setAttribute('data-pal',g('pal')||'violet');var t=g('theme');if(t==='light'||t==='dark')d.setAttribute('data-theme',t);
+if(g('lang')==='en'){d.lang='en';d.dir='ltr';}}catch(e){}})();</script>
+<link rel="preload" href="assets/IBMPlexSansArabic-Medium.ttf" as="font" type="font/ttf" crossorigin>
 <style>
 /* Self-hosted, so the page makes no external request. Font: IBM Plex Sans Arabic (OFL) — the app's own font. */
 @font-face{
@@ -93,8 +98,7 @@ ul,ol{padding:0;list-style:none}
 
 /* header */
 .top{position:sticky;top:env(safe-area-inset-top,0px);z-index:50;
-  background:color-mix(in srgb,var(--bg) 80%,transparent);
-  -webkit-backdrop-filter:blur(14px) saturate(1.2);backdrop-filter:blur(14px) saturate(1.2);
+  background:color-mix(in srgb,var(--a1) 5%,var(--bg));
   border-bottom:1px solid var(--line)}
 .top .wrap{display:flex;align-items:center;gap:12px;min-height:68px}
 .brand{display:flex;align-items:center;gap:10px;text-decoration:none;font-weight:700;font-size:1.5rem;line-height:1}
@@ -335,7 +339,7 @@ tbody th{font-weight:500;color:var(--muted);width:17%}
 
 <header class="top">
   <div class="wrap">
-    <a class="brand" href="#top"><img id="logo" alt="" width="40" height="40"><span id="brandName"></span></a>
+    <a class="brand" href="#top"><img id="logo" src="assets/dubli-icon.png" alt="" width="40" height="40" decoding="async"><span id="brandName"></span></a>
     <nav class="links" aria-label="Sections">
       <a href="#features" data-i18n="nav.features"></a>
       <a href="#how" data-i18n="nav.how"></a>
@@ -514,7 +518,7 @@ tbody th{font-weight:500;color:var(--muted);width:17%}
     <div class="wrap">
       <div class="sec-h"><h2 data-i18n="get.title"></h2><p data-i18n="get.sub"></p></div>
       <div class="dl">
-        <img id="logo2" alt="" width="168" height="168">
+        <img id="logo2" src="assets/dubli-icon.png" alt="" width="168" height="168" loading="lazy" decoding="async">
         <div>
           <dl>
             <dt data-i18n="get.plat"></dt><dd data-i18n="get.plat.v"></dd>
