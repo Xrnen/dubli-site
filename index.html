@@ -308,6 +308,8 @@ tbody th{font-weight:500;color:var(--muted);width:17%}
   html{scroll-behavior:auto}
   *,*::before,*::after{transition:none!important;animation:none!important}
 }
+/* translated games list (tools/site/make_game_pages.py) */
+.gl{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:14px;list-style:none;padding:0;margin:0}.gl a{display:block;text-decoration:none;color:inherit}.gl img{width:100%;height:auto;aspect-ratio:2/3;object-fit:cover;border-radius:12px;display:block}.gl span{display:block;font-size:14px;margin-top:6px;line-height:1.5}
 </style>
 </head>
 <body>
@@ -497,6 +499,15 @@ tbody th{font-weight:500;color:var(--muted);width:17%}
     </div>
   </section>
 
+<!--games:start-->
+  <section class="sec alt" id="games">
+    <div class="wrap">
+      <div class="sec-h"><h2 data-i18n="games.title">الألعاب المعرّبة</h2><p data-i18n="games.sub">تعريبات جاهزة تركّبها من دوبلي بضغطة زر.</p></div>
+      <ul class="gl"><li><a href="games/call-of-cthulhu/"><img src="games/img/call-of-cthulhu.jpg" alt="" loading="lazy" width="120" height="180"><span>تعريب Call of Cthulhu</span></a></li><li><a href="games/the-alighieri-circle/"><img src="games/img/the-alighieri-circle.jpg" alt="" loading="lazy" width="120" height="180"><span>تعريب The Alighieri Circle: Dante&#x27;s Bloodline</span></a></li><li><a href="games/within-of-static/"><img src="games/img/within-of-static.jpg" alt="" loading="lazy" width="120" height="180"><span>تعريب Within of Static - Northgate Mall</span></a></li><li><a href="games/time-to-wake-up/"><img src="games/img/time-to-wake-up.jpg" alt="" loading="lazy" width="120" height="180"><span>تعريب Time To Wake Up</span></a></li><li><a href="games/home-sweet-home/"><img src="games/img/home-sweet-home.jpg" alt="" loading="lazy" width="120" height="180"><span>تعريب Home Sweet Home</span></a></li><li><a href="games/the-town-of-light/"><img src="games/img/the-town-of-light.jpg" alt="" loading="lazy" width="120" height="180"><span>تعريب The Town of Light</span></a></li><li><a href="games/the-bridge-curse/"><img src="games/img/the-bridge-curse.jpg" alt="" loading="lazy" width="120" height="180"><span>تعريب The Bridge Curse: Road to Salvation</span></a></li><li><a href="games/the-bridge-curse-2/"><img src="games/img/the-bridge-curse-2.jpg" alt="" loading="lazy" width="120" height="180"><span>تعريب The Bridge Curse 2: The Extrication</span></a></li><li><a href="games/soma/"><img src="games/img/soma.jpg" alt="" loading="lazy" width="120" height="180"><span>تعريب SOMA</span></a></li></ul>
+    </div>
+  </section>
+  <!--games:end-->
+
   <section class="sec" id="get">
     <div class="wrap">
       <div class="sec-h"><h2 data-i18n="get.title"></h2><p data-i18n="get.sub"></p></div>
@@ -561,6 +572,7 @@ var ICON = 'assets/dubli-icon.png';
 var T = {
 ar: {
  'nav.features':'المزايا','nav.how':'كيف يعمل','nav.safety':'الأمان','nav.faq':'الأسئلة','nav.get':'التحميل','nav.menu':'القائمة',
+ 'games.title':'الألعاب المعرّبة','games.sub':'تعريبات جاهزة تركّبها من دوبلي بضغطة زر.',
  'tool.theme':'تبديل الوضع الداكن والفاتح','tool.pal':'ألوان الصفحة',
  'pal.violet':'بنفسجي','pal.blue':'أزرق','pal.pink':'وردي','pal.emerald':'زمردي','pal.rose':'توتي','pal.amber':'كهرماني',
  'hero.eyebrow':'تعريب الألعاب لويندوز',
@@ -631,6 +643,7 @@ ar: {
 },
 en: {
  'nav.features':'Features','nav.how':'How it works','nav.safety':'Safety','nav.faq':'FAQ','nav.get':'Download','nav.menu':'Menu',
+ 'games.title':'Translated games','games.sub':'Ready-made Arabic translations you install from Dubli in one click.',
  'tool.theme':'Toggle dark and light mode','tool.pal':'Page colors',
  'pal.violet':'Violet','pal.blue':'Blue','pal.pink':'Pink','pal.emerald':'Emerald','pal.rose':'Rose','pal.amber':'Amber',
  'hero.eyebrow':'Game localization for Windows',
